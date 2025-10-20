@@ -53,7 +53,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    #Connect to UserManager
+    #Connect to UserManager-
     objects = UserManager()
     
     #Login by email
@@ -69,3 +69,60 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"{self.full_name} ({self.role})"
         
 
+class Patient(models.Model):
+    """
+    Patient table - save patient-specific information
+    """
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ]
+    
+    #Relationship with user: 1-1
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='patient_profile'
+    )
+    date_of_birth = models.DateField(blank=True, null=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
+    address = models.TextField(blank=True, null=True)
+    insurance_info = models.TextField(blank=True, null=True)
+    emergency_contact = models.CharField(max_length=255, blank=True, null=True)
+    emergency_contact_phone = models.CharField(max_length=10, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'patients'
+        verbose_name = 'Patient'
+        verbose_name_plural = 'Patients'
+        
+    def __str__(self):
+        return f"Patient: {self.user.full_name}"
+    
+class Doctor(models.Model):
+    """
+    Doctor table - save doctor-specific information
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='doctor_profile'
+    )
+    
+    title = models.CharField(max_length=100, blank=True)
+    specialization = models.CharField(max_length=255) 
+    license_number = models.CharField(max_length=100, unique=True)
+    experience_years = models.IntegerField(default=0)
+    consultation_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    bio = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'doctors'
+        verbose_name = 'Doctor'
+        verbose_name_plural = 'Doctors'
+    
+    def __str__(self):
+        return f"Dr. {self.user.full_name} - {self.specialization}"
