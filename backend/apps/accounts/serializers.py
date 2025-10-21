@@ -35,13 +35,13 @@ class RegisterSerializer(serializers.ModelSerializer):
     #Step2. Meta class - Serializater config
     class Meta:
         model = User
-        fields = ['email', 'password', 'password_confirm', 'full_name', 'phone_num', 'role'
+        fields = ['email', 'password', 'password_confirm', 'full_name', 'phone_num', 'role',
                   #Patient fields (extra)
                   'date_of_birth', 'gender', 'address'
                   ]
         
     #Step 3. Validate methods
-    def validate(self, data):
+    def validate(self, attrs):
         """
         Custom validation:
         - Django DRF sẽ tự động validate các field theo kiểu dữ liệu đã khai báo
@@ -49,17 +49,21 @@ class RegisterSerializer(serializers.ModelSerializer):
         """
     
     #Check 1: password match
-        if data['password'] != data['password_confirm']:
+        pwd1 = attrs.get('password')
+        pwd2 = attrs.get('password_confirm')
+        if pwd1 != pwd2:
             raise serializers.ValidationError({
-                "password": "password confirm does not match"
+                "password_confirm": "Password do not match"
             })
     #Check 2: Role must be 'patient' for registering
-        if data.get['role'] not in ['patient', 'doctor', 'admin']:
+        if attrs.get('role') != 'patient':
             raise serializers.ValidationError({
-                "role": "Role is not valid"
+                "role": "Role must be 'patient' for registering"
             })
+    #DEBUG: print data
+        print("validate() called with:", attrs)
     #If passing all validation -> return data
-        return data
+        return attrs
     
     #Step 4: Create method - create records:
     def create(self, validated_data):
@@ -70,7 +74,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         """
         
         #Step 4.1: Extract and remove the fields not in User model
-        validated_data.pop('password_confirm') #remove password_confirm from dict
+        validated_data.pop('password_confirm', None) #remove password_confirm from dict
         
         date_of_birth = validated_data.pop('date_of_birth', None)
         gender = validated_data.pop('gender', None)
@@ -87,6 +91,8 @@ class RegisterSerializer(serializers.ModelSerializer):
                 gender=gender, 
                 address=address
             )
+        #DEBUG:
+        print("create() called with:", validated_data)
         return user
     
 class LoginSerializer(serializers.Serializer):

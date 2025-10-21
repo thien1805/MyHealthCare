@@ -5,8 +5,10 @@ from rest_framework.views import APIView
 from .models import User
 from .serializers import RegisterSerializer, UserSerializer, LoginSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 #Registration API 
+
+User = get_user_model()
 class RegisterView(generics.CreateAPIView):
     """
     API to register a new patient
@@ -31,7 +33,7 @@ class RegisterView(generics.CreateAPIView):
             "user": UserSerializer(user).data,
             "tokens":
                 {
-                    "refresh": str(fresh),
+                    "refresh": str(refresh),
                     "access": str(refresh.access_token) #access token
                 }
         }, status=status.HTTP_201_CREATED)
