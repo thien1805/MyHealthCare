@@ -1,5 +1,9 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.core.validators import RegexValidator
+import re
+from django.db.models import Q #lớp tạo biểu thức ORM
+
 
 
 class UserManager(BaseUserManager):
@@ -33,7 +37,8 @@ class UserManager(BaseUserManager):
             raise ValueError('Superuser must have is_active=True.')
         return self.create_user(email, password, **extra_fields)
 
-        
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     """
     Bảng User - lưu thông tin người dùng chung
@@ -46,7 +51,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255)
-    phone_num = models.CharField(max_length=20, blank=True, null=True)
+    phone_num = models.CharField(max_length=20, blank=True, null=True,)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

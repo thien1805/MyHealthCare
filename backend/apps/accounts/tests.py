@@ -10,7 +10,7 @@ def test_register_ok(db): #tên bắt đầu bằng test_ để pytest nhận di
         "password":"password123",
         "password_confirm":"password123",
         "full_name":"Nguyễn Văn A",
-        "phone":"0901234567",
+        "phone_num":"0901234567",
         "role":"patient",
         "date_of_birth":"1990-01-15",
         "gender":"male",

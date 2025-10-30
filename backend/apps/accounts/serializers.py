@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model #import custom user model
 from .models import Patient, Doctor
+from django.core.validators import RegexValidator
 
 User = get_user_model()
 
@@ -26,7 +27,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     #Field password (not in User model)
     password = serializers.CharField(write_only=True, min_length=6) #just write, not response.
     password_confirm = serializers.CharField(write_only=True)
-    
+    phone_num = serializers.CharField(
+        validators=[RegexValidator(r'^\d{10}$', 'Phone number must be exactly 10 digits.')]
+    )
     #Patient fields: (optional)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=Patient.GENDER_CHOICES, required=False, allow_null=True)
@@ -74,7 +77,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         """
         
         #Step 4.1: Extract and remove the fields not in User model
-        validated_data.pop('password_confirm', None) #remove password_confirm from dict
+        validated_data.pop('password_confirm') #remove password_confirm from dict
         
         date_of_birth = validated_data.pop('date_of_birth', None)
         gender = validated_data.pop('gender', None)

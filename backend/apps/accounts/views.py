@@ -84,7 +84,8 @@ class LoginView(generics.GenericAPIView):
 class ProfileView(generics.RetrieveAPIView):
     """
     GET /api/accounts/profile/
-    PUT /api/accounts/profile
+    PUT /api/accounts/profile/
+    PATCH /api/accounts/profile/
     """
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated] #Must be logged in to access this API
