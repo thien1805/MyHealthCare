@@ -6,7 +6,7 @@ from django.db.models import Q #lớp tạo biểu thức ORM
 
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager): #tạo người dùng
     """
     Manage để tạo user với email thay vì username
     """
@@ -39,7 +39,7 @@ class UserManager(BaseUserManager):
 
 
 
-class User(AbstractBaseUser, PermissionsMixin):
+class User(AbstractBaseUser, PermissionsMixin): #AbstractBaseUser là lớp cơ sở để tùy chỉnh user model
     """
     Bảng User - lưu thông tin người dùng chung
     """                   
@@ -93,7 +93,7 @@ class Patient(models.Model):
     date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
     address = models.TextField(blank=True, null=True)
-    insurance_info = models.TextField(blank=True, null=True)
+    insurance_id = models.TextField(blank=True, null=True)
     emergency_contact = models.CharField(max_length=255, blank=True, null=True)
     emergency_contact_phone = models.CharField(max_length=10, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

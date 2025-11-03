@@ -4,6 +4,10 @@ from .models import Patient, Doctor
 from django.core.validators import RegexValidator
 
 User = get_user_model()
+#Serializer in DRF dùng để chuyển đổi dữ liệu từ Python object/Query set => Json
+#Serialization: Chuyển dữ liệu từ model -> JSON -> gửi ra ngoài cho client (React, Postman)
+#Deserialization: Nhận Json từ request -> kiểm tra, validate -> Chuyển thành Python objet hoặc moddel instance để lưu vào DB
+
 
 #Serializer for User
 class UserSerializer(serializers.ModelSerializer):

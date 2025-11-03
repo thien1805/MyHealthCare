@@ -12,7 +12,7 @@ class UserAdmin(BaseUserAdmin):
 
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Detailed information', {'fields': ('full_name', 'phone', 'role')}),
+        ('Detailed information', {'fields': ('full_name', 'phone_num', 'role')}),
         ('Authority', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
         ('Time', {'fields': ('created_at', 'updated_at')}),
     )
@@ -26,9 +26,29 @@ class UserAdmin(BaseUserAdmin):
     )
     
     
-# @admin.register(Patient)
-# class PatientAdmin(admin.ModelAdmin):
-#     list_display = ['get_full_name', 'get_email', 'date_of_birth', 'gender', 'address', 
-#                     'insurance_info', 'emergency_contact', 'emergency_contact_phone',
-#                     'created_at']
+@admin.register(Patient)
+class PatientAdmin(admin.ModelAdmin):
+    list_display = ['get_full_name', 'get_email', 'date_of_birth', 'gender', 'address', 
+                    'insurance_id', 'emergency_contact', 
+                    'emergency_contact_phone', 'created_at']
+    list_filter = ['insurance_id', 'created_at']
+    search_fields = ["user__full_name", "user__email", "address", "insurance_id"]
+    ordering = ["-created_at"]
     
+    fieldsets = (
+        ('Patient Information', {"fields": ('user', 'date_of_birth', 'gender', 
+                                           'address')}),
+        ('Insurance Information', {"fields": ('insurance_id',)}),
+        ('Emergency Contact', {'fields': ('emergency_contact', 'emergency_contact_phone')}),
+        ('Time', {'fields': ('created_at',)}),
+         )   
+    
+    readonly_fields = ['created_at']
+    def get_full_name(self, obj):
+        return obj.user.full_name
+    get_full_name.short_description = 'Full Name'
+    
+    def get_email(self, obj):
+        return obj.user.email
+    get_full_name.short_description = "Email"
+
