@@ -12,7 +12,7 @@ User = get_user_model()
 class RegisterView(generics.CreateAPIView):
     """
     API to register a new patient
-    POST /api/accounts/register/
+    POST /api/v1/auth/register/
     """
     query_set = User.objects.all()
     serializer_class = RegisterSerializer
