@@ -54,8 +54,11 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.accounts',
 
-    
 
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Frontend URL
 ]
 
 MIDDLEWARE = [
