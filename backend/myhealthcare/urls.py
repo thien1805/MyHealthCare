@@ -16,8 +16,20 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/auth/', include(('apps.accounts.urls', 'accounts'), namespace='accounts')),
+    
+    #Endpoint đeer lấy cả access và refresh token
+    # post yêu cầu username và password
+    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    
+    #Endpoint để làm mới (refresh) ACCESS Token đã hết hạn
+    #POST yêu cầu refresh token
+    path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

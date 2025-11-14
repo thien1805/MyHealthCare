@@ -35,9 +35,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         validators=[RegexValidator(r'^\d{10}$', 'Phone number must be exactly 10 digits.')]
     )
     #Patient fields: (optional)
-    date_of_birth = serializers.DateField(required=False, allow_null=True)
-    gender = serializers.ChoiceField(choices=Patient.GENDER_CHOICES, required=False, allow_null=True)
-    address = serializers.CharField(required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(allow_null=True,required = True)
+    gender = serializers.ChoiceField(choices=Patient.GENDER_CHOICES, required=True, allow_null=True)
+    address = serializers.CharField(required=True, allow_blank=True)
     
     #Step2. Meta class - Serializater config
     class Meta:
