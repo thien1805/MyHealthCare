@@ -24,8 +24,7 @@ from apps.accounts.views import ProfileView
 
 urlpatterns = [
     path('api/v1/admin/', admin.site.urls),
-    path('api/v1/auth/', include(('apps.accounts.urls.auth_urls'), namespace='auth')),
-    path('api/v1/user', include(('apps.accounts.urls.user_urls'), namespace='user')),
+    path('api/v1/', include('apps.accounts.urls', namespace='accounts')),
     #Endpoint đeer lấy cả access và refresh token
     # post yêu cầu username và password
     path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

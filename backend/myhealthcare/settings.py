@@ -43,12 +43,12 @@ if os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'):
         )
     }
 elif os.getenv('DATABASE_URL'):
-    DATABASE ={
+    DATABASES = {
         'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
     }
 else: 
     #Local development]
-     DATABASES = {
+    DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DB_NAME', ''),
