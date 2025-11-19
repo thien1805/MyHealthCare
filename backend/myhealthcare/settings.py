@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 from datetime import timedelta
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,15 +23,48 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 load_dotenv(BASE_DIR / '.env')
+# print("BASE_DIR:", BASE_DIR)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only")
 DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost").split(",")
 
+if os.getenv('WEBSITE_HOSTNAME'):
+    ALLOWED_HOSTS.append(os.getenv('WEBSITE_HOSTNAME'))
 
+
+
+if os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'):
+    # Parse Azure connection string
+    DATABASES = {
+        'default': dj_database_url.parse(
+            os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'),
+            conn_max_age=600
+        )
+    }
+elif os.getenv('DATABASE_URL'):
+    DATABASE ={
+        'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
+    }
+else: 
+    #Local development]
+     DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', ''),
+            'OPTIONS': {
+                'service': os.getenv("PGSERVICE", "MyHealthCare_service"),
+                'passfile': os.getenv("PGPASSFILE"),
+            }
+        }
+    }
 # SECURITY WARNING: don't run with debug turned on in production!
-
-
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 
 # Application definition
@@ -89,20 +123,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'myhealthcare.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME':'',
-        'OPTIONS': {
-            'service': os.getenv("PGSERVICE", "MyHealthCare_service"),
-            "passfile": os.getenv("PGPASSFILE"),
-        }
-    }
-}
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -139,6 +159,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+#WHITENOISE for serving static files:
+MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -176,18 +201,17 @@ SIMPLE_JWT = {
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type'
-    
-    
-    
+
 }
 
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173"
 ]
-
-
+if os.getenv('WEBSITE_HOSTNAME'):
+    CORS_ALLOWED_ORIGINS.append(f"https://{os.getenv('WEBSITE_HOSTNAME')}")
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
