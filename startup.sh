@@ -15,4 +15,3 @@ python manage.py collectstatic --no-input --clear
 echo "Starting Gunicorn server..."
 exec gunicorn --bind=0.0.0.0:8000 --workers=4 --timeout=600 --access-logfile=- --error-logfile=- myhealthcare.wsgi:application
 
-
