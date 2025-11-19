@@ -1,13 +1,10 @@
 name: Simple Azure Deploy
 
-# Workflow đơn giản chỉ deploy khi có thay đổi ở backend
 on:
   push:
     branches:
       - main
       - master
-    paths:
-      - 'backend/**'
   workflow_dispatch:
 
 jobs:
