@@ -1,23 +1,18 @@
 #!/bin/bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-pip install --upgrade pip
-pip install --upgrade setuptools
-pip install --upgrade wheel
-pip install --upgrade gunicorn
-pip install --upgrade dj-database-url
-pip install --upgrade whitenoise
-pip install --upgrade psycopg2-binary
-pip install --upgrade django-extensions
-pip install --upgrade djangorestframework
-pip install --upgrade djangorestframework-simplejwt
-pip install --upgrade django-cors-headers
-pip install --upgrade django-filter
-pip install --upgrade django-rest-framework-simplejwt
-pip install --upgrade django-rest-framework-simplejwt-blacklist
+set -e
 
+echo "Starting Django application..."
+
+# Run migrations
+echo "Running database migrations..."
 python manage.py migrate --no-input
-python manage.py collectstatic --no-input
-gunicorn --bind=0.0.0.0 --timeout 600 myhealthcare.wsgi:application
+
+# Collect static files
+echo "Collecting static files..."
+python manage.py collectstatic --no-input --clear
+
+# Start Gunicorn
+echo "Starting Gunicorn server..."
+exec gunicorn --bind=0.0.0.0:8000 --workers=4 --timeout=600 --access-logfile=- --error-logfile=- myhealthcare.wsgi:application
 
 

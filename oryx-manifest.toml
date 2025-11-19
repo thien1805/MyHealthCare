@@ -1,0 +1,13 @@
+# Oryx build manifest
+# Tells Azure Oryx where to find the Python application
+
+[build]
+# Set the project directory
+projectDir = "backend"
+
+[python]
+# Python version
+version = "3.11"
+# Requirements file location
+requirementsFile = "backend/requirements.txt"
+
