@@ -144,10 +144,27 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer for User profile information"""
     patient_profile = PatientProfileSerializer(read_only=True, required=False)
     doctor_profile = DoctorProfileSerializer(read_only=True, required=False)
+    
     class Meta:
         model = User
         fields = ['id', 'email', 'full_name', 'phone_num', 'role', 'is_active', 'created_at', 'updated_at', 'patient_profile', 'doctor_profile']
         read_only_fields = ['id','email', 'role', 'created_at', 'updated_at']
+    
+    def to_representation(self, instance):
+        """Custom representation để chỉ trả về profile tương ứng với role"""
+        data = super().to_representation(instance)
+        
+        # Chỉ giữ profile tương ứng với role của user
+        if instance.role == 'patient':
+            data.pop('doctor_profile', None)  # Xóa doctor_profile
+        elif instance.role == 'doctor':
+            data.pop('patient_profile', None)  # Xóa patient_profile
+        else:
+            # Nếu role khác, xóa cả 2
+            data.pop('patient_profile', None)
+            data.pop('doctor_profile', None)
+        
+        return data
         
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating User profile information"""
