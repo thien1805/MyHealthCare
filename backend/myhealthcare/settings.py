@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     #Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'rest_framework.authtoken',
     'corsheaders',
     "django_extensions",
@@ -159,9 +160,25 @@ REST_FRAMEWORK = {
 
 #JWT Setting
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24), #dùng để truy cập trực tiếp các API bảo mật
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1), #dùng để truy cập trực tiếp các API bảo mật
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7), #dùng để lấy access token mới   
+    'ROTATE_REFRESH_TOKENS': True, #Khi access token hết hạn, sẽ tự động lấy refresh token mới
+    'BLACKLIST_AFTER_ROTATION': True, #Blacklist token cũ sau khi rotate
+    'UPDATE_LAST_LOGIN': True, #Cập nhật thời gian đăng nhập gần nhất
+    
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type'
+    
+    
+    
 }
 
 CORS_ALLOWED_ORIGINS = [

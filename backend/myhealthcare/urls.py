@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import (
 )
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('api/v1/admin/', admin.site.urls),
     path('api/v1/auth/', include(('apps.accounts.urls', 'accounts'), namespace='accounts')),
     
     #Endpoint đeer lấy cả access và refresh token
@@ -33,3 +33,5 @@ urlpatterns = [
     #POST yêu cầu refresh token
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
+
+
