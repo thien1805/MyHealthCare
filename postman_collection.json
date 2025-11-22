@@ -1,0 +1,596 @@
+{
+	"info": {
+		"_postman_id": "myhealthcare-api-collection",
+		"name": "MyHealthCare API",
+		"description": "API collection for MyHealthCare application - Appointment booking system",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "patient_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "doctor_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "appointment_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "department_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "service_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register Patient",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"patient1@test.com\",\n    \"password\": \"patient123\",\n    \"full_name\": \"Nguyễn Văn A\",\n    \"phone_num\": \"0901234567\",\n    \"role\": \"patient\",\n    \"date_of_birth\": \"1990-01-01\",\n    \"gender\": \"male\",\n    \"address\": \"123 Đường ABC, Quận 1, TP.HCM\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/register/",
+							"host": ["{{base_url}}"],
+							"path": ["register", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Doctor",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"doctor1@test.com\",\n    \"password\": \"doctor123\",\n    \"full_name\": \"BS. Nguyễn Văn B\",\n    \"phone_num\": \"0907654321\",\n    \"role\": \"doctor\",\n    \"title\": \"Bác sĩ\",\n    \"specialization\": \"Nhi khoa\",\n    \"license_number\": \"BS12345\",\n    \"years_of_experience\": 10\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/register/",
+							"host": ["{{base_url}}"],
+							"path": ["register", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.access) {",
+									"        pm.collectionVariables.set(\"access_token\", jsonData.access);",
+									"    }",
+									"    if (jsonData.refresh) {",
+									"        pm.collectionVariables.set(\"refresh_token\", jsonData.refresh);",
+									"    }",
+									"    if (jsonData.user && jsonData.user.id) {",
+									"        if (jsonData.user.role === 'patient') {",
+									"            pm.collectionVariables.set(\"patient_id\", jsonData.user.id);",
+									"        }",
+									"        if (jsonData.user.role === 'doctor') {",
+									"            pm.collectionVariables.set(\"doctor_id\", jsonData.user.id);",
+									"        }",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"patient1@test.com\",\n    \"password\": \"patient123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/token/",
+							"host": ["{{base_url}}"],
+							"path": ["token", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/token/refresh/",
+							"host": ["{{base_url}}"],
+							"path": ["token", "refresh", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["profile", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"Nguyễn Văn A Updated\",\n    \"phone_num\": \"0901234568\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profile/",
+							"host": ["{{base_url}}"],
+							"path": ["profile", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["logout", ""]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Doctors",
+			"item": [
+				{
+					"name": "List All Doctors",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/doctors/",
+							"host": ["{{base_url}}"],
+							"path": ["doctors", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Doctors by Specialization",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/doctors/?specialization=Nhi khoa",
+							"host": ["{{base_url}}"],
+							"path": ["doctors", ""],
+							"query": [
+								{
+									"key": "specialization",
+									"value": "Nhi khoa"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Departments & Services",
+			"item": [
+				{
+					"name": "List All Departments (Specialties)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/services/specialties/",
+							"host": ["{{base_url}}"],
+							"path": ["services", "specialties", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List All Services",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/services/",
+							"host": ["{{base_url}}"],
+							"path": ["services", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/services/1/",
+							"host": ["{{base_url}}"],
+							"path": ["services", "1", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Filter Services by Department",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/services/?department=Nhi khoa",
+							"host": ["{{base_url}}"],
+							"path": ["services", ""],
+							"query": [
+								{
+									"key": "department",
+									"value": "Nhi khoa"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Available Slots",
+			"item": [
+				{
+					"name": "Get Available Slots",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Auto-extract department_id if available",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.department && jsonData.department.id) {",
+									"        pm.collectionVariables.set(\"department_id\", jsonData.department.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/available-slots/?doctor_id={{doctor_id}}&date=2025-12-01&department_id={{department_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["available-slots", ""],
+							"query": [
+								{
+									"key": "doctor_id",
+									"value": "{{doctor_id}}",
+									"description": "Doctor ID"
+								},
+								{
+									"key": "date",
+									"value": "2025-12-01",
+									"description": "Date in YYYY-MM-DD format"
+								},
+								{
+									"key": "department_id",
+									"value": "{{department_id}}",
+									"description": "Optional: Department ID"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Appointments",
+			"item": [
+				{
+					"name": "Book Appointment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.appointment && jsonData.appointment.id) {",
+									"        pm.collectionVariables.set(\"appointment_id\", jsonData.appointment.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"doctor_id\": {{doctor_id}},\n    \"department_id\": {{department_id}},\n    \"appointment_date\": \"2025-12-01\",\n    \"appointment_time\": \"09:00\",\n    \"symptoms\": \"Sốt, ho, sổ mũi\",\n    \"reason\": \"Khám bệnh cho trẻ em\",\n    \"notes\": \"Trẻ 5 tuổi, sốt 3 ngày\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments/",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List My Appointments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/appointments/my-appointments/",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "my-appointments", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List My Appointments (Filtered by Status)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/appointments/my-appointments/?status=booked",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "my-appointments", ""],
+							"query": [
+								{
+									"key": "status",
+									"value": "booked"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Appointment by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/appointments/{{appointment_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "{{appointment_id}}", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Appointment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Không thể đến được\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments/{{appointment_id}}/cancel/",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "{{appointment_id}}", "cancel", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reschedule Appointment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"new_date\": \"2025-12-02\",\n    \"new_time\": \"10:00\",\n    \"reason\": \"Có việc đột xuất\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments/{{appointment_id}}/reschedule/",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "{{appointment_id}}", "reschedule", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Service (Doctor Only)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.appointment && jsonData.appointment.service && jsonData.appointment.service.id) {",
+									"        pm.collectionVariables.set(\"service_id\", jsonData.appointment.service.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"service_id\": {{service_id}}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/appointments/{{appointment_id}}/assign-service/",
+							"host": ["{{base_url}}"],
+							"path": ["appointments", "{{appointment_id}}", "assign-service", ""]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
+

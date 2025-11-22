@@ -115,6 +115,14 @@ class LoginSerializer(serializers.Serializer):
 # Serializer for Patient Profile
 class PatientProfileSerializer(serializers.ModelSerializer):
     """Serializer for Patient profile information"""
+    emergency_contact_phone = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        validators=[RegexValidator(r'^\d{10}$', 'Emergency contact phone must be exactly 10 digits.')],
+        help_text="Emergency contact phone number (exactly 10 digits)"
+    )
+    
     class Meta:
         model = Patient
         fields = [
@@ -126,18 +134,32 @@ class PatientProfileSerializer(serializers.ModelSerializer):
             'emergency_contact_phone'
         ]
         read_only_fields = []
+    
+    def validate_emergency_contact_phone(self, value):
+        """Validate emergency contact phone number"""
+        if value:
+            if not value.isdigit() or len(value) != 10:
+                raise serializers.ValidationError("Emergency contact phone must be exactly 10 digits.")
+        return value
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
     """Serializer for Doctor profile information"""
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    department_id = serializers.IntegerField(source='department.id', read_only=True)
+    
     class Meta:
         model = Doctor
         fields = [
+            'department_id',
+            'department_name',
             'title', 
             'specialization', 
             'license_number', 
-            'experience_years', 'consultation_fee', 'bio'
+            'experience_years', 
+            'consultation_fee', 
+            'bio'
         ] 
-        read_only_fields = ['license_number']
+        read_only_fields = ['license_number', 'department_id', 'department_name']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -155,28 +177,94 @@ class UserSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         
         # Chỉ giữ profile tương ứng với role của user
+        # XÓA profile không phù hợp để đảm bảo không hiển thị
         if instance.role == 'patient':
-            data.pop('doctor_profile', None)  # Xóa doctor_profile
+            # Patient: chỉ có patient_profile
+            try:
+                if hasattr(instance, 'patient_profile') and instance.patient_profile:
+                    data['patient_profile'] = PatientProfileSerializer(instance.patient_profile).data
+                else:
+                    data['patient_profile'] = None
+            except:
+                data['patient_profile'] = None
+            # XÓA doctor_profile - không bao giờ hiển thị cho patient
+            data.pop('doctor_profile', None)
+            
         elif instance.role == 'doctor':
-            data.pop('patient_profile', None)  # Xóa patient_profile
+            # Doctor: chỉ có doctor_profile
+            try:
+                if hasattr(instance, 'doctor_profile') and instance.doctor_profile:
+                    data['doctor_profile'] = DoctorProfileSerializer(instance.doctor_profile).data
+                else:
+                    data['doctor_profile'] = None
+            except:
+                data['doctor_profile'] = None
+            # XÓA patient_profile - không bao giờ hiển thị cho doctor
+            data.pop('patient_profile', None)
+            
         else:
-            # Nếu role khác, xóa cả 2
+            # Admin hoặc role khác: không có profile
             data.pop('patient_profile', None)
             data.pop('doctor_profile', None)
-        
+            
         return data
         
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating User profile information"""
-    #required=False: không bắt buộc phải có field này trong request
-    patient_profile = PatientProfileSerializer(required=False)
-    doctor_profile = DoctorProfileSerializer(required=False)
+    # Không khai báo cả 2 profiles ở đây, sẽ dùng to_representation để chỉ hiển thị đúng profile
     class Meta:
         model = User
         #Chỉ cho phép update những fields này
-        fields = ['full_name', 'phone_num', 'patient_profile', 'doctor_profile']
+        fields = ['full_name', 'phone_num']
         #Chỉ cho phép đọc những fields này
         read_only_fields = ['id','email', 'role', 'created_at', 'updated_at']
+    
+    def __init__(self, *args, **kwargs):
+        """Dynamic fields based on user role"""
+        super().__init__(*args, **kwargs) #khởi tạo serializer với các fields đã khai báo trong Meta class
+        
+        # Lấy instance từ args hoặc kwargs
+        # Instance có thể ở vị trí đầu tiên trong args nếu được truyền như: Serializer(instance)
+        instance = kwargs.get('instance') or (args[0] if args and hasattr(args[0], 'role') else None)
+        # Lấy partial từ kwargs (True cho PATCH, False cho PUT)
+        # Luôn set partial=True cho nested serializer để cho phép update một phần
+        partial = kwargs.get('partial', True)  # Mặc định True để cho phép update một phần
+        
+        if instance and hasattr(instance, 'role'):
+            # Chỉ thêm profile field đúng với role
+            if instance.role == 'patient':
+                # Set partial=True cho nested serializer để cho phép update một phần
+                # Cho phép update các fields như emergency_contact, emergency_contact_phone, insurance_id, etc.
+                self.fields['patient_profile'] = PatientProfileSerializer(required=False, partial=True)
+            elif instance.role == 'doctor':
+                # Set partial=True cho nested serializer để cho phép update một phần
+                # Cho phép update các fields như title, specialization, consultation_fee, bio, etc.
+                self.fields['doctor_profile'] = DoctorProfileSerializer(required=False, partial=True)
+            # Admin hoặc role khác: không có profile fields
+    
+    def to_representation(self, instance):
+        """Custom representation để hiển thị nested profile trong form HTML"""
+        data = super().to_representation(instance)
+        
+        # Thêm nested profile data để form HTML có thể hiển thị
+        if instance.role == 'patient':
+            try:
+                if hasattr(instance, 'patient_profile') and instance.patient_profile:
+                    data['patient_profile'] = PatientProfileSerializer(instance.patient_profile).data
+                else:
+                    data['patient_profile'] = None
+            except:
+                data['patient_profile'] = None
+        elif instance.role == 'doctor':
+            try:
+                if hasattr(instance, 'doctor_profile') and instance.doctor_profile:
+                    data['doctor_profile'] = DoctorProfileSerializer(instance.doctor_profile).data
+                else:
+                    data['doctor_profile'] = None
+            except:
+                data['doctor_profile'] = None
+        
+        return data
     
     def validate_phone_num(self, value):
         """
@@ -208,14 +296,36 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         #Update Patient Profile if exists and data provided
         if instance.role == "patient" and patient_profile_data is not None:
             patient_profile, created = Patient.objects.get_or_create(user=instance)
-            for attr, value in patient_profile_data.items():
-                setattr(patient_profile, attr, value)
-            patient_profile.save()
+            # Update từng field trong patient_profile_data
+            # Sử dụng nested serializer để update đúng cách
+            patient_serializer = PatientProfileSerializer(
+                instance=patient_profile, 
+                data=patient_profile_data, 
+                partial=True
+            )
+            if patient_serializer.is_valid():
+                patient_serializer.save()
+            else:
+                # Nếu validation fail, fallback về cách cũ
+                for attr, value in patient_profile_data.items():
+                    # Cho phép set None hoặc empty string cho các fields optional
+                    setattr(patient_profile, attr, value)
+                patient_profile.save()
         
         elif instance.role == "doctor" and doctor_profile_data is not None:
             doctor_profile, created = Doctor.objects.get_or_create(user=instance)
-            for attr, value in doctor_profile_data.items():
-                setattr(doctor_profile, attr, value)
-            doctor_profile.save()
+            # Sử dụng nested serializer để update đúng cách
+            doctor_serializer = DoctorProfileSerializer(
+                instance=doctor_profile,
+                data=doctor_profile_data,
+                partial=True
+            )
+            if doctor_serializer.is_valid():
+                doctor_serializer.save()
+            else:
+                # Nếu validation fail, fallback về cách cũ
+                for attr, value in doctor_profile_data.items():
+                    setattr(doctor_profile, attr, value)
+                doctor_profile.save()
         
         return instance
