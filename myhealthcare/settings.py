@@ -32,32 +32,73 @@ ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost").split(",")
 if os.getenv('WEBSITE_HOSTNAME'):
     ALLOWED_HOSTS.append(os.getenv('WEBSITE_HOSTNAME'))
 
+# Database Configuration
+# ======================
+# IMPORTANT: Local development ALWAYS uses local database
+# Production database is ONLY used when deployed
+#
+# Detection Logic (backward compatible):
+# 1. If WEBSITE_HOSTNAME exists → Production (Azure)
+# 2. If AZURE_POSTGRESQL_CONNECTIONSTRING exists AND not localhost → Production
+# 3. If DATABASE_URL exists AND not localhost → Production
+# 4. Otherwise → Development (Local)
 
+# Check if running in production
+# Azure automatically sets WEBSITE_HOSTNAME when deployed
+IS_PRODUCTION = bool(os.getenv('WEBSITE_HOSTNAME'))
 
-if os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'):
-    # Parse Azure connection string
-    DATABASES = {
-        'default': dj_database_url.parse(
-            os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'),
-            conn_max_age=600
+# Additional check: If connection string exists and points to remote server
+# (backward compatibility for existing deployments)
+azure_conn = os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING', '')
+db_url = os.getenv('DATABASE_URL', '')
+
+# Check if connection strings point to remote (not localhost)
+is_remote_connection = (
+    ('azure' in azure_conn.lower() or 'database.azure.com' in azure_conn) or
+    ('@' in db_url and 'localhost' not in db_url and '127.0.0.1' not in db_url)
+)
+
+# Determine if production: Azure hostname OR remote connection string exists
+IS_PRODUCTION = IS_PRODUCTION or (is_remote_connection and not DEBUG)
+
+if IS_PRODUCTION:
+    # PRODUCTION: Deployed environment (Azure, Heroku, etc.)
+    # Use connection string from environment variables
+    if os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'):
+        # Azure PostgreSQL
+        DATABASES = {
+            'default': dj_database_url.parse(
+                os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'),
+                conn_max_age=600
+            )
+        }
+    elif os.getenv('DATABASE_URL'):
+        # Generic database URL (Heroku, Railway, etc.)
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=os.getenv('DATABASE_URL'),
+                conn_max_age=600
+            )
+        }
+    else:
+        # Fallback: Should not happen in production
+        raise ValueError(
+            "Production environment detected but no database connection string found. "
+            "Please set AZURE_POSTGRESQL_CONNECTIONSTRING or DATABASE_URL."
         )
-    }
-elif os.getenv('DATABASE_URL'):
-    DATABASES = {
-        'default': dj_database_url.config(default=os.getenv('DATABASE_URL'))
-    }
-else: 
-    #Local development]
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME', ''),
-            'OPTIONS': {
-                'service': os.getenv("PGSERVICE", "MyHealthCare_service"),
-                'passfile': os.getenv("PGPASSFILE"),
+else:
+    # DEVELOPMENT: Local environment
+    # ALWAYS use local database, ignore any production connection strings
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'OPTIONS': {
+                    'service': os.getenv("PGSERVICE", "MyHealthCare_service"),
+                    'passfile': os.getenv("PGPASSFILE", os.path.expanduser("~/.pgpass")),
+                }
             }
         }
-    }
+  
 # SECURITY WARNING: don't run with debug turned on in production!
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -88,6 +129,7 @@ INSTALLED_APPS = [
     # Local apps
     'apps.core',
     'apps.accounts',
+    'apps.appointments',
 
 
 ]
@@ -180,6 +222,17 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',  # Enable browsable API interface
+    ),
+    'DEFAULT_PARSER_CLASSES': (
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
 }
 
 #JWT Setting

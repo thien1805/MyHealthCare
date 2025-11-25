@@ -50,5 +50,38 @@ class PatientAdmin(admin.ModelAdmin):
     
     def get_email(self, obj):
         return obj.user.email
-    get_full_name.short_description = "Email"
+    get_email.short_description = "Email"
+
+
+@admin.register(Doctor)
+class DoctorAdmin(admin.ModelAdmin):
+    list_display = ['get_full_name', 'get_email', 'department', 'room', 'title', 'specialization', 'license_number', 'rating', 'created_at']
+    list_filter = ['department', 'title', 'created_at']
+    search_fields = ['user__full_name', 'user__email', 'specialization', 'license_number', 'room__room_number']
+    ordering = ['-rating', 'user__full_name']
+    
+    fieldsets = (
+        ('Doctor Information', {
+            'fields': ('user', 'department', 'room', 'title', 'specialization', 'license_number')
+        }),
+        ('Professional Details', {
+            'fields': ('experience_years', 'consultation_fee', 'bio')
+        }),
+        ('Rating & Reviews', {
+            'fields': ('rating', 'total_reviews', 'avatar_url')
+        }),
+        ('Time', {
+            'fields': ('created_at',)
+        }),
+    )
+    
+    readonly_fields = ['created_at']
+    
+    def get_full_name(self, obj):
+        return obj.user.full_name
+    get_full_name.short_description = 'Full Name'
+    
+    def get_email(self, obj):
+        return obj.user.email
+    get_email.short_description = "Email"
 

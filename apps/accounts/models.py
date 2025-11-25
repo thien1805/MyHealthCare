@@ -95,7 +95,13 @@ class Patient(models.Model):
     address = models.TextField(blank=True, null=True)
     insurance_id = models.TextField(blank=True, null=True)
     emergency_contact = models.CharField(max_length=255, blank=True, null=True)
-    emergency_contact_phone = models.CharField(max_length=10, blank=True, null=True)
+    emergency_contact_phone = models.CharField(
+        max_length=10, 
+        blank=True, 
+        null=True,
+        validators=[RegexValidator(r'^\d{10}$', 'Emergency contact phone must be exactly 10 digits.')],
+        help_text="Emergency contact phone number (exactly 10 digits)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -116,12 +122,33 @@ class Doctor(models.Model):
         related_name='doctor_profile'
     )
     
+    # ForeignKey đến Department - Doctor phải thuộc một department
+    department = models.ForeignKey(
+        'appointments.Department',
+        on_delete=models.PROTECT,
+        related_name='doctors',
+        help_text="Department/specialty this doctor belongs to"
+    )
+    
+    # OneToOneField đến Room - Mỗi doctor có một phòng riêng
+    room = models.OneToOneField(
+        'appointments.Room',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='doctor',
+        help_text="Room assigned to this doctor"
+    )
+    
     title = models.CharField(max_length=100, blank=True)
-    specialization = models.CharField(max_length=255) 
+    specialization = models.CharField(max_length=255, help_text="Specialization (can be same as department name)") 
     license_number = models.CharField(max_length=100, unique=True)
     experience_years = models.IntegerField(default=0)
     consultation_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     bio = models.TextField()
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00, help_text="Doctor rating from 0.00 to 5.00")
+    avatar_url = models.URLField(blank=True, null=True, help_text="URL to doctor's profile picture")
+    total_reviews = models.IntegerField(default=0, help_text="Total number of reviews/ratings")
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -130,4 +157,4 @@ class Doctor(models.Model):
         verbose_name_plural = 'Doctors'
     
     def __str__(self):
-        return f"Dr. {self.user.full_name} - {self.specialization}"
+        return f"Dr. {self.user.full_name} - {self.department.name if hasattr(self, 'department') else self.specialization}"

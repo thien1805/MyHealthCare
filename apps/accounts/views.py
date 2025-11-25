@@ -3,11 +3,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError as DRFValidationError
-from .models import User
+from .models import User, Doctor
 from .serializers import RegisterSerializer, UserSerializer, LoginSerializer, ProfileUpdateSerializer, DoctorProfileSerializer, PatientProfileSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.db import transaction
 from django.conf import settings
 from django.apps import apps
@@ -75,14 +75,14 @@ class RegisterView(generics.CreateAPIView):
             return Response({
                 "success": False,
                 "message": "An error occurred while registering. Please try again.",
-                "error": str(e) if settings.DEBUG else "Internal server error"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                "error": str(e) if settings.DEBUG else "Sorry, something went wrong. Please try again later."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         
 #Login API
 class LoginView(generics.GenericAPIView):
     """
-    POST /api/accounts/login/
+    POST /api/v1/auth/login/
     """
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
@@ -108,7 +108,9 @@ class LoginView(generics.GenericAPIView):
                 "success": False,
                 "message": "User account is disabled"
             }, status=status.HTTP_403_FORBIDDEN)
-            
+        
+        #Tạo Django session
+        login(request, user)
         #Step 3: Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
@@ -148,11 +150,16 @@ class LogoutView(APIView):
             # Kiểm tra xem 'rest_framework_simplejwt.token_blacklist' có được cài đặt không
             if 'rest_framework_simplejwt.token_blacklist' in settings.INSTALLED_APPS:
                 token.blacklist()
+            
+            logout(request)
+            
+            redirect_url = request.data.get('redirect_url', '/api/v1/auth/login')
 
             return Response({
                 "success": True,
-                "message": "Logout successfully"
-            }, status=status.HTTP_205_RESET_CONTENT)
+                "message": "Logout successfully",
+                "redirect_url": redirect_url
+            }, status=status.HTTP_200_OK)
 
         #Xử lí lỗi khi token không hợp lệ (đã hết hạn, sai format)
         except TokenError:
@@ -181,6 +188,7 @@ class LogoutAllView(APIView):
             for token in tokens:
                 try:
                     BlacklistedToken.objects.get_or_create(token=token)
+                    logout(request)
                 except Exception:
                     pass
             #Trả về response thành công, sau khi API run thì user bị logout khỏi tất cả thiết bị
@@ -197,11 +205,12 @@ class LogoutAllView(APIView):
 #User Profile API
 class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView sang RetrieveUpdateAPIView
     """
-    GET /api/v1/auth/profile/  -> Xem thông tin
-    PUT /api/v1/auth/profile/  -> Cập nhật toàn bộ - Update user profile (full)
-    PATCH /api/v1/auth/profile/-> Cập nhật một phần - Update user profile (partial)
+    GET /api/v1/user/profile/  -> Xem thông tin
+    PUT /api/v1/user/profile/  -> Cập nhật toàn bộ - Update user profile (full)
+    PATCH /api/v1/user/profile/-> Cập nhật một phần - Update user profile (partial)
     """
     permission_classes = [IsAuthenticated]
+    
     def get_object(self):
         """
         Method này được gọi khi cần lấy object để thao tác
@@ -214,6 +223,23 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
         if self.request.method in ['PUT', 'PATCH']:
             return ProfileUpdateSerializer
         return UserSerializer
+    
+    def get_serializer_context(self):
+        """Add request to serializer context"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Override method retrieve để đảm bảo response format đúng
+        Handle GET request - trả về user profile với nested profile data
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        # Refresh from DB để đảm bảo có dữ liệu mới nhất
+        instance.refresh_from_db()
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
         """
@@ -223,32 +249,81 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
         partial = kwargs.pop('partial', False) #lấy và xoá key partial từ kwargs
         instance = self.get_object() #lấy user object hiện tại
         
-        #tạo serializer với
-        # -instance: object cần update 
-        # -data: dữ liệu mới từ request body
-        # -partial: cho phép update một phần hay không
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        # Với nested serializer, luôn dùng partial=True để cho phép update một phần
+        # Điều này giúp PUT request hoạt động đúng với nested profile
+        # Nếu muốn update toàn bộ, vẫn cần gửi đủ fields, nhưng nested sẽ được xử lý linh hoạt hơn
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
         
         #Validate dữ liệu đầu vào
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         
-        #Return updated user with full profule data
-        updated_user = UserSerializer(instance).data
+        # Refresh from DB để đảm bảo có dữ liệu mới nhất (bao gồm nested profile)
+        instance.refresh_from_db()
         
-        return Response({
-            "success": True,
-            "message": "Profile updated successfully",
-            "user": updated_user
-        }, status=status.HTTP_200_OK)
-    
-
-            
-            
-            
-            
-            
-    
-       
-
+        # Refresh related profile objects nếu có
+        if hasattr(instance, 'patient_profile'):
+            try:
+                instance.patient_profile.refresh_from_db()
+            except:
+                pass
+        if hasattr(instance, 'doctor_profile'):
+            try:
+                instance.doctor_profile.refresh_from_db()
+            except:
+                pass
         
+        # Return updated user with full profile data
+        # Sử dụng ProfileUpdateSerializer với instance để form HTML có thể hiển thị đúng nested fields
+        # Browsable API sẽ tự động reload form từ response data
+        # Quan trọng: Phải truyền instance vào serializer để __init__ có thể thêm nested fields
+        updated_serializer = ProfileUpdateSerializer(instance=instance)
+        
+        # Trả về response với format mà Browsable API có thể hiểu
+        # Response phải trả về chính xác format của serializer để form có thể reload
+        return Response(updated_serializer.data, status=status.HTTP_200_OK)
+
+
+# Doctor List API
+class DoctorListView(generics.ListAPIView):
+    """
+    GET /api/v1/doctors/
+    List all active doctors, filterable by department_id
+    Query params: 
+        - ?department_id=1 (recommended) - Filter by department ID
+        - ?specialization=Nhi khoa (backward compatible) - Filter by specialization name
+    
+    Example:
+        GET /api/v1/doctors/?department_id=1 - Get all doctors in department ID 1
+        GET /api/v1/doctors/ - Get all active doctors
+    """
+    from apps.appointments.serializers import DoctorListSerializer
+    
+    serializer_class = DoctorListSerializer
+    permission_classes = [AllowAny]  # Public listing
+    
+    def get_queryset(self):
+        """
+        Filter doctors by department_id or specialization if provided
+        """
+        queryset = Doctor.objects.filter(
+            user__is_active=True,
+            department__is_active=True  # Chỉ lấy doctors của department đang active
+        ).select_related('user', 'department')
+        
+        # Filter by department_id (preferred method)
+        department_id = self.request.query_params.get('department_id', None)
+        if department_id:
+            try:
+                department_id = int(department_id)
+                queryset = queryset.filter(department_id=department_id)
+            except (ValueError, TypeError):
+                # Invalid department_id, return empty queryset
+                queryset = queryset.none()
+        
+        # Filter by specialization (backward compatible - chỉ dùng nếu không có department_id)
+        specialization = self.request.query_params.get('specialization', None)
+        if specialization and not department_id:
+            queryset = queryset.filter(specialization__icontains=specialization)
+        
+        return queryset.order_by('-rating', 'user__full_name')
