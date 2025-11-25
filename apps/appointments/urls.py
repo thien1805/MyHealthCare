@@ -6,6 +6,6 @@ from .views import AvailableSlotsView
 
 urlpatterns = [
     # Custom action URLs (not part of ViewSet)
-    path('available-slots/', AvailableSlotsView.as_view(), name='available-slots'),
+    # Note: available-slots is now registered in main urls.py to avoid router conflicts
 ]
 

@@ -53,7 +53,8 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
     ViewSet for Service model
     GET /api/v1/services/ - List all active services
     GET /api/v1/services/{id}/ - Retrieve a service
-    GET /api/v1/services/specialties/ - List all unique specialties/departments
+    GET /api/v1/services/?department_id=1 - Filter by department ID
+    GET /api/v1/services/?specialty_id=1 - Filter by service ID
     """
     queryset = Service.objects.filter(is_active=True)
     serializer_class = ServiceSerializer
@@ -72,19 +73,75 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         """
-        Filter services by specialty_id or department if provided
+        Filter services by specialty_id or department_id if provided
         """
         queryset = super().get_queryset()
         
         specialty_id = self.request.query_params.get('specialty_id', None)
-        department = self.request.query_params.get('department', None)
+        department_id = self.request.query_params.get('department_id', None)
         
+        # Filter by specialty_id (service ID)
         if specialty_id:
-            queryset = queryset.filter(id=specialty_id)
-        elif department:
-            queryset = queryset.filter(department__icontains=department)
+            try:
+                specialty_id = int(specialty_id)
+                queryset = queryset.filter(id=specialty_id)
+            except (ValueError, TypeError):
+                # Invalid specialty_id - will be handled in list() method
+                pass
         
+        # Filter by department_id
+        if department_id:
+            try:
+                department_id = int(department_id)
+                queryset = queryset.filter(department_id=department_id)
+            except (ValueError, TypeError):
+                # Invalid department_id - will be handled in list() method
+                pass
+        
+     
         return queryset
+    
+    def list(self, request, *args, **kwargs):
+        """
+        Override list to validate query parameters before filtering
+        """
+        specialty_id = request.query_params.get('specialty_id', None)
+        department_id = request.query_params.get('department_id', None)
+        
+        # Validate specialty_id if provided
+        if specialty_id:
+            try:
+                specialty_id_int = int(specialty_id)
+                # Check if service exists
+                if not Service.objects.filter(id=specialty_id_int, is_active=True).exists():
+                    return Response({
+                        "success": False,
+                        "error": f"Service with ID {specialty_id} not found or inactive"
+                    }, status=status.HTTP_404_NOT_FOUND)
+            except (ValueError, TypeError):
+                return Response({
+                    "success": False,
+                    "error": f"Invalid specialty_id: '{specialty_id}'. Must be an integer."
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate department_id if provided
+        if department_id:
+            try:
+                department_id_int = int(department_id)
+                # Check if department exists
+                if not Department.objects.filter(id=department_id_int, is_active=True).exists():
+                    return Response({
+                        "success": False,
+                        "error": f"Department with ID {department_id} not found or inactive"
+                    }, status=status.HTTP_404_NOT_FOUND)
+            except (ValueError, TypeError):
+                return Response({
+                    "success": False,
+                    "error": f"Invalid department_id: '{department_id}'. Must be an integer."
+                }, status=status.HTTP_400_BAD_REQUEST)
+      
+        # If validation passes, call parent list method
+        return super().list(request, *args, **kwargs)
 
 
 class AvailableSlotsView(APIView):
@@ -301,7 +358,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             'count': len(serializer.data)
         }, status=status.HTTP_200_OK)
     
-    def get_queryset(self):
+    def get_queryset(self): 
         """
         Filter appointments based on user role
         """

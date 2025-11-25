@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from apps.accounts.views import ProfileView
-from apps.appointments.views import ServiceViewSet, AppointmentViewSet, DepartmentViewSet
+from apps.appointments.views import ServiceViewSet, AppointmentViewSet, DepartmentViewSet, AvailableSlotsView
 
 # Create main API router for browsable API root
 api_router = DefaultRouter()
@@ -32,6 +32,9 @@ api_router.register(r'appointments', AppointmentViewSet, basename='appointment')
 
 urlpatterns = [
     path('api/v1/admin/', admin.site.urls),
+    
+    # Custom appointments URLs (must be before router to avoid conflicts)
+    path('api/v1/appointments/available-slots/', AvailableSlotsView.as_view(), name='available-slots'),
     
     # API Root - Browsable API interface (shows all available endpoints)
     path('api/v1/', include(api_router.urls)),

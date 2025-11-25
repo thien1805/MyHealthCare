@@ -75,8 +75,8 @@ class RegisterView(generics.CreateAPIView):
             return Response({
                 "success": False,
                 "message": "An error occurred while registering. Please try again.",
-                "error": str(e) if settings.DEBUG else "Internal server error"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                "error": str(e) if settings.DEBUG else "Sorry, something went wrong. Please try again later."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         
 #Login API

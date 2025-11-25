@@ -125,9 +125,13 @@ class ServiceSerializer(serializers.ModelSerializer):
     Serializer for Service model
     Used for listing services/specialties
     """
+    department_id = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
     department_icon = serializers.SerializerMethodField()
     
+    def get_department_id(self, obj):
+        return obj.department.id if obj.department else None
+
     def get_department_name(self, obj):
         """Return department name"""
         return obj.department.name if obj.department else None
@@ -141,7 +145,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'department',
+            'department_id',
             'department_name',
             'department_icon',
             'description',
@@ -149,7 +153,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             'is_active',
             'created_at'
         ]
-        read_only_fields = ['id', 'created_at', 'department_name', 'department_icon']
+        read_only_fields = ['id', 'created_at', 'department_name', 'department_icon', 'department_id']
 
 
 class RoomSerializer(serializers.ModelSerializer):
