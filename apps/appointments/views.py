@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.db.models import Q
 from datetime import datetime, timedelta, time as dt_time
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 from .models import Department, Service, Room, Appointment, Department
 from .serializers import (
@@ -22,6 +24,7 @@ from .serializers import (
     AppointmentCreateSerializer,
     AppointmentRescheduleSerializer,
     AppointmentCancelSerializer,
+    AppointmentAssignServiceSerializer,
     DepartmentDetailSerializer
 )
 
@@ -42,6 +45,57 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Department.objects.filter(is_active=True).order_by('name')
     permission_classes = [AllowAny]  # Public listing
     pagination_class = StandardResultSetPagination
+    
+    @extend_schema(
+        operation_id="departments_list",
+        summary="List all departments",
+        description="Get a paginated list of all active departments",
+        tags=["Departments"],
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Page number',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results per page (max 100)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: DepartmentSerializer(many=True),
+        }
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @extend_schema(
+        operation_id="departments_retrieve",
+        summary="Retrieve department details",
+        description="Get detailed information about a specific department including services and doctors",
+        tags=["Departments"],
+        responses={
+            200: DepartmentDetailSerializer,
+            404: {
+                'description': 'Department not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'detail': 'Not found.'
+                        }
+                    }
+                }
+            }
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
     def get_serializer_class(self):
         if self.action == "retrieve":
             return DepartmentDetailSerializer
@@ -60,6 +114,87 @@ class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ServiceSerializer
     permission_classes = [AllowAny]  # Public listing
     
+    @extend_schema(
+        operation_id="services_list",
+        summary="List all services",
+        description="Get a list of all active services, optionally filtered by department_id or specialty_id",
+        tags=["Services"],
+        parameters=[
+            OpenApiParameter(
+                name='department_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Filter services by department ID',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='specialty_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Filter services by service ID (specialty)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: ServiceSerializer(many=True),
+            400: {
+                'description': 'Invalid query parameters',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': "Invalid department_id: 'abc'. Must be an integer."
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Department or service not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'Department with ID 999 not found or inactive'
+                        }
+                    }
+                }
+            }
+        }
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @extend_schema(
+        operation_id="services_retrieve",
+        summary="Retrieve service details",
+        description="Get detailed information about a specific service",
+        tags=["Services"],
+        responses={
+            200: ServiceSerializer,
+            404: {
+                'description': 'Service not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'detail': 'Not found.'
+                        }
+                    }
+                }
+            }
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
+    @extend_schema(
+        operation_id="services_specialties",
+        summary="List all specialties/departments",
+        description="Get a list of all unique specialties/departments (alias for departments list)",
+        tags=["Services"],
+        responses={
+            200: DepartmentSerializer(many=True),
+        }
+    )
     @action(detail=False, methods=['get'], url_path='specialties')
     def specialties(self, request):
         """
@@ -152,6 +287,113 @@ class AvailableSlotsView(APIView):
     """
     permission_classes = [AllowAny]  # Public access for booking
     
+    @extend_schema(
+        operation_id="appointments_available_slots",
+        summary="Get available appointment slots",
+        description="Get available time slots for a doctor on a specific date. Returns all time slots (08:00-16:30) with availability status.",
+        tags=["Appointments"],
+        parameters=[
+            OpenApiParameter(
+                name='doctor_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Doctor ID',
+                required=True,
+            ),
+            OpenApiParameter(
+                name='date',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Appointment date in YYYY-MM-DD format',
+                required=True,
+            ),
+            OpenApiParameter(
+                name='department_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Department ID (optional)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: {
+                'description': 'Available slots retrieved successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'date': '2024-01-15',
+                            'doctor': {
+                                'id': 1,
+                                'full_name': 'Dr. John Doe',
+                                'specialization': 'Cardiology'
+                            },
+                            'department': {
+                                'id': 1,
+                                'name': 'Cardiology',
+                                'icon': 'heart'
+                            },
+                            'available_slots': [
+                                {
+                                    'time': '08:00',
+                                    'available': True,
+                                    'room': '101'
+                                },
+                                {
+                                    'time': '08:30',
+                                    'available': False,
+                                    'room': None
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request parameters',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'missing_params': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'doctor_id and date are required parameters'
+                                }
+                            },
+                            'invalid_date': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Invalid date format. Use YYYY-MM-DD'
+                                }
+                            },
+                            'past_date': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot book appointments in the past'
+                                }
+                            },
+                            'too_far_ahead': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot book appointments more than 30 days in advance'
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Doctor or department not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'Doctor not found or inactive'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def get(self, request):
         """
         Calculate and return available time slots
@@ -296,6 +538,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     serializer_class = AppointmentSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultSetPagination
+    
     def get_serializer_class(self):
         """
         Use different serializer for different actions
@@ -308,6 +551,193 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return AppointmentRescheduleSerializer
         return AppointmentSerializer
     
+    @extend_schema(
+        operation_id="appointments_create",
+        summary="Book a new appointment",
+        description="Create a new appointment. Only patients can book appointments. Room will be automatically assigned from doctor's room or department.",
+        tags=["Appointments"],
+        request=AppointmentCreateSerializer,
+        responses={
+            201: {
+                'description': 'Appointment booked successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Appointment booked successfully',
+                            'appointment': {
+                                'id': 1,
+                                'patient': {
+                                    'id': 1,
+                                    'full_name': 'John Doe',
+                                    'email': 'patient@example.com'
+                                },
+                                'doctor': {
+                                    'id': 2,
+                                    'full_name': 'Dr. Jane Smith',
+                                    'specialization': 'Cardiology'
+                                },
+                                'appointment_date': '2024-01-15',
+                                'appointment_time': '09:00:00',
+                                'status': 'booked',
+                                'estimated_fee': '500000.00'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Validation error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'This time slot is already taken. Please choose another time.'
+                        }
+                    }
+                }
+            },
+            403: {
+                'description': 'Permission denied',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'Only patients can book appointments'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Book Appointment Example',
+                value={
+                    'doctor_id': 2,
+                    'department_id': 1,
+                    'appointment_date': '2024-01-15',
+                    'appointment_time': '09:00:00',
+                    'symptoms': 'Chest pain',
+                    'reason': 'Regular checkup',
+                    'notes': 'First time visit'
+                },
+                request_only=True,
+            )
+        ]
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+    
+    @extend_schema(
+        operation_id="appointments_list",
+        summary="List appointments",
+        description="Get a list of appointments. Patients see only their appointments, doctors see their appointments, admins see all appointments.",
+        tags=["Appointments"],
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Page number',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results per page (max 100)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: AppointmentSerializer(many=True),
+        }
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+    
+    @extend_schema(
+        operation_id="appointments_retrieve",
+        summary="Retrieve appointment details",
+        description="Get detailed information about a specific appointment",
+        tags=["Appointments"],
+        responses={
+            200: AppointmentSerializer,
+            404: {
+                'description': 'Appointment not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'detail': 'Not found.'
+                        }
+                    }
+                }
+            }
+        }
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
+    @extend_schema(
+        operation_id="appointments_doctors_by_department",
+        summary="Get doctors by department",
+        description="Get list of doctors filtered by department_id. Useful for dynamically loading doctors when department is selected.",
+        tags=["Appointments"],
+        parameters=[
+            OpenApiParameter(
+                name='department_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Department ID',
+                required=True,
+            ),
+        ],
+        responses={
+            200: {
+                'description': 'Doctors retrieved successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'department': {
+                                'id': 1,
+                                'name': 'Cardiology',
+                                'icon': 'heart'
+                            },
+                            'doctors': [
+                                {
+                                    'id': 1,
+                                    'full_name': 'Dr. John Doe',
+                                    'specialization': 'Cardiology',
+                                    'rating': 4.5
+                                }
+                            ],
+                            'count': 1
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'error': 'department_id parameter is required'
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Department not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'error': 'Department with ID 999 not found or inactive.'
+                        }
+                    }
+                }
+            }
+        }
+    )
     @action(detail=False, methods=['get'], url_path='doctors-by-department', permission_classes=[IsAuthenticated])
     def doctors_by_department(self, request):
         """
@@ -445,6 +875,45 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             "appointment": response_serializer.data
         }, status=status.HTTP_201_CREATED)
     
+    @extend_schema(
+        operation_id="appointments_my_appointments",
+        summary="Get my appointments",
+        description="Get current user's appointments with optional filtering by status and date range",
+        tags=["Appointments"],
+        parameters=[
+            OpenApiParameter(
+                name='status',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by appointment status (booked, confirmed, completed, cancelled, no_show)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='date_from',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Filter appointments from this date (YYYY-MM-DD)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='date_to',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Filter appointments until this date (YYYY-MM-DD)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Page number',
+                required=False,
+            ),
+        ],
+        responses={
+            200: AppointmentSerializer(many=True),
+        }
+    )
     @action(detail=False, methods=['get'], url_path='my-appointments')
     def my_appointments(self, request):
         """
@@ -481,6 +950,88 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data,
                      status=status.HTTP_200_OK)
     
+    @extend_schema(
+        operation_id="appointments_cancel",
+        summary="Cancel an appointment",
+        description="Cancel an appointment. Must cancel at least 24 hours before appointment. Patients can cancel their own appointments, doctors can cancel their own appointments, admins can cancel any appointment.",
+        tags=["Appointments"],
+        request=AppointmentCancelSerializer,
+        responses={
+            200: {
+                'description': 'Appointment cancelled successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Appointment cancelled successfully',
+                            'appointment': {
+                                'id': 1,
+                                'status': 'cancelled',
+                                'cancellation_reason': 'Changed my mind'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request or business rule violation',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'already_cancelled': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot cancel appointment with status: cancelled'
+                                }
+                            },
+                            'too_late': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot cancel appointment within 24 hours of scheduled time'
+                                }
+                            },
+                            'past_appointment': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot cancel an appointment that has already passed'
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'description': 'Permission denied',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'You can only cancel your own appointments'
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Appointment not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'detail': 'Not found.'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Cancel Appointment Example',
+                value={
+                    'reason': 'Changed my mind'
+                },
+                request_only=True,
+            )
+        ]
+    )
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
         """
@@ -570,6 +1121,90 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             "appointment": response_serializer.data
         }, status=status.HTTP_200_OK)
     
+    @extend_schema(
+        operation_id="appointments_reschedule",
+        summary="Reschedule an appointment",
+        description="Reschedule an appointment to a new date and time. Patients can reschedule their own appointments. The new time slot must be available.",
+        tags=["Appointments"],
+        request=AppointmentRescheduleSerializer,
+        responses={
+            200: {
+                'description': 'Appointment rescheduled successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Appointment rescheduled successfully',
+                            'appointment': {
+                                'id': 1,
+                                'appointment_date': '2024-01-20',
+                                'appointment_time': '10:00:00',
+                                'status': 'booked',
+                                'rescheduled_from': {
+                                    'date': '2024-01-15',
+                                    'time': '09:00:00'
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request or business rule violation',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'invalid_status': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot reschedule appointment with status: cancelled'
+                                }
+                            },
+                            'slot_taken': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'New time slot is already taken. Please choose another time.',
+                                    'suggestions': []
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'description': 'Permission denied',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'You can only reschedule your own appointments'
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Appointment not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'detail': 'Not found.'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Reschedule Appointment Example',
+                value={
+                    'new_date': '2024-01-20',
+                    'new_time': '10:00:00',
+                    'reason': 'Need to change time'
+                },
+                request_only=True,
+            )
+        ]
+    )
     @action(detail=True, methods=['put'], url_path='reschedule')
     def reschedule(self, request, pk=None):
         """
@@ -637,6 +1272,117 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             "appointment": response_serializer.data
         }, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        operation_id="appointments_assign_service",
+        summary="Assign service to appointment",
+        description="Assign a service to an appointment. Only the doctor of the appointment can assign services. The appointment must be in 'confirmed' or 'completed' status. The service must belong to the same department as the appointment.",
+        tags=["Appointments"],
+        request=AppointmentAssignServiceSerializer,
+        responses={
+            200: {
+                'description': 'Service assigned successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Service assigned successfully',
+                            'appointment': {
+                                'id': 1,
+                                'service': {
+                                    'id': 1,
+                                    'name': 'X-Ray',
+                                    'price': '200000.00'
+                                },
+                                'estimated_fee': '700000.00'
+                            },
+                            'fee_breakdown': {
+                                'health_examination_fee': '500000.00',
+                                'service_fee': '200000.00',
+                                'total_fee': '700000.00'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request or business rule violation',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'missing_service_id': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'service_id is required'
+                                }
+                            },
+                            'invalid_status': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot assign service to appointment with status: booked'
+                                }
+                            },
+                            'wrong_department': {
+                                'value': {
+                                    'success': False,
+                                    'error': "Service does not belong to the appointment's department"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'description': 'Permission denied',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'not_doctor': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Only doctors can assign services to appointments'
+                                }
+                            },
+                            'not_owner': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'You can only assign service to your own appointments'
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Appointment or service not found',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'appointment_not_found': {
+                                'value': {
+                                    'detail': 'Not found.'
+                                }
+                            },
+                            'service_not_found': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Service not found or inactive'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Assign Service Example',
+                value={
+                    'service_id': 1
+                },
+                request_only=True,
+            )
+        ]
+    )
     @action(detail=True, methods=['post'], url_path='assign-service')
     def assign_service(self, request, pk=None):
         """

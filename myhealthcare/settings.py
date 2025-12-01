@@ -125,7 +125,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'corsheaders',
     "django_extensions",
-    
+    "drf_spectacular",
     # Local apps
     'apps.core',
     'apps.accounts',
@@ -233,6 +233,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',  # Use drf-spectacular for OpenAPI schema
 }
 
 #JWT Setting
@@ -277,3 +278,59 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CORS_ALLOWED_CREDENTIAL = True
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'MyHealthCare API',
+    'DESCRIPTION': 'API Documentation for MyHealthCare',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'COMPONENT_NO_READ_ONLY_FIELDS': True,
+    
+    # Cấu hình nhiều servers (domains) cho OpenAPI
+    # Người dùng có thể chọn server trong Swagger UI
+    'SERVERS': [
+        {
+            'url': 'http://127.0.0.1:8000',
+            'description': 'Development server (Local)'
+        },
+        {
+            'url': f"https://{os.getenv('WEBSITE_HOSTNAME', 'https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net/')}",
+            'description': 'Production server'
+        }
+    ],
+    
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True, #Giữ authorization khi refresh
+        'displayOperationID': True,
+        'filter': True, #Cho phép lọc các endpoint theo tên
+        'tagsSorter': 'alpha', #Sắp xếp các tags theo thứ tự alphabet
+        'operationsSorter': 'alpha',
+    },
+    
+    'ATUHENTICATION_WHITELIST': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'Bearer': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
+    'SECURITY': [{'BearerAuth': []}], #Mặc định yêu cầu JWT cho tất cả endpoints
+    
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'Authentication APIs'},
+        {'name': 'Accounts', 'description': 'API for accounts'},
+        {'name': 'Appointments', 'description': 'API for appointments'},
+        {'name': 'Departments', 'description': 'API for departments'},
+        {'name': 'Services', 'description': 'API for services'},
+        {'name': 'Department', 'description': 'API for department'},
+    ]
+}
+    

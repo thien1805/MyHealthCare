@@ -1,4 +1,5 @@
 from rest_framework import status, generics
+
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
@@ -11,6 +12,8 @@ from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.db import transaction
 from django.conf import settings
 from django.apps import apps
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 import logging
 
@@ -29,6 +32,75 @@ class RegisterView(generics.CreateAPIView):
     query_set = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny] #anyone can access this API
+    
+    @extend_schema(
+        operation_id="auth_register",
+        summary="Register new patient",
+        description="Register a new patient account. Creates both User and Patient profile.",
+        tags=["Authentication"],
+        request=RegisterSerializer,
+        responses={
+            201: {
+                'description': 'User registered successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'User registered successfully',
+                            'user': {
+                                'id': 1,
+                                'email': 'patient@example.com',
+                                'full_name': 'John Doe',
+                                'phone_num': '0123456789',
+                                'role': 'patient',
+                                'is_active': True,
+                                'created_at': '2024-01-01T00:00:00Z',
+                                'updated_at': '2024-01-01T00:00:00Z',
+                                'patient_profile': {
+                                    'date_of_birth': '1990-01-01',
+                                    'gender': 'male',
+                                    'address': '123 Main St'
+                                }
+                            },
+                            'tokens': {
+                                'refresh': 'refresh_token_string',
+                                'access': 'access_token_string'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Validation error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'An error occurred while registering. Please try again.',
+                            'error': 'Validation error details'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Register Example',
+                value={
+                    'email': 'patient@example.com',
+                    'password': 'password123',
+                    'password_confirm': 'password123',
+                    'full_name': 'John Doe',
+                    'phone_num': '0123456789',
+                    'role': 'patient',
+                    'date_of_birth': '1990-01-01',
+                    'gender': 'male',
+                    'address': '123 Main St'
+                },
+                request_only=True,
+            )
+        ]
+    )
     
     @transaction.atomic
     def create(self, request, *args, **kwargs):
@@ -82,10 +154,65 @@ class RegisterView(generics.CreateAPIView):
 #Login API
 class LoginView(generics.GenericAPIView):
     """
+    API login user
+    Return access and refresh token for authentication
     POST /api/v1/auth/login/
     """
     serializer_class = LoginSerializer
     permission_classes = [AllowAny]
+    
+    @extend_schema(
+        operation_id="auth_login",
+        summary="Login",
+        description="Login with email and password",
+        tags=["Authentication"],
+        request=LoginSerializer,
+        responses={
+            200: {
+                'description': 'Login successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Login successfully',
+                            'user': {
+                                'id': 1,
+                                'email': 'test@example.com',
+                                'full_name': 'John Doe'
+                            },
+                            'tokens': {
+                                'refresh': 'refresh_token',
+                                'access': 'access_token'
+                            }
+                        }
+                    }
+                }
+            },
+            401: {
+                'description': 'Invalid email or password',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'Invalid email or password'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Login Example',
+                value={
+                    'email': 'patient@example.com',
+                    'password': 'password123'
+                },
+                request_only=True,
+            )
+        ]
+    )
+    
+    
     def post(self, request):
         #Step1: Validate input data
         serializer = LoginSerializer(data=request.data)
@@ -133,6 +260,65 @@ class LogoutView(APIView):
     #Chỉ cho phép user đã đăng nhập mới gọi API này
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="auth_logout",
+        summary="Logout from current device",
+        description="Logout from current device and blacklist the refresh token. Requires authentication.",
+        tags=["Authentication"],
+        request={
+            'type': 'object',
+            'properties': {
+                'refresh': {
+                    'type': 'string',
+                    'description': 'Refresh token to blacklist'
+                },
+                'redirect_url': {
+                    'type': 'string',
+                    'description': 'Optional redirect URL after logout',
+                    'default': '/api/v1/auth/login'
+                }
+            },
+            'required': ['refresh']
+        },
+        responses={
+            200: {
+                'description': 'Logout successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Logout successfully',
+                            'redirect_url': '/api/v1/auth/login'
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Bad request - missing refresh token or invalid token',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'Refresh token is required'
+                        }
+                    }
+                }
+            },
+            401: {
+                'description': 'Unauthorized - authentication required'
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Logout Example',
+                value={
+                    'refresh': 'refresh_token_string',
+                    'redirect_url': '/api/v1/auth/login'
+                },
+                request_only=True,
+            )
+        ]
+    )
     def post(self, request):
         try:
             #Lấy refresh token từ request body 
@@ -181,6 +367,39 @@ class LogoutAllView(APIView):
     """
     permission_classes = [IsAuthenticated]
     
+    @extend_schema(
+        operation_id="auth_logout_all",
+        summary="Logout from all devices",
+        description="Logout from all devices and blacklist all refresh tokens for the current user. Requires authentication.",
+        tags=["Authentication"],
+        responses={
+            205: {
+                'description': 'Logged out from all devices successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Logged out from all devices successfully'
+                        }
+                    }
+                }
+            },
+            401: {
+                'description': 'Unauthorized - authentication required'
+            },
+            500: {
+                'description': 'Internal server error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'Error message'
+                        }
+                    }
+                }
+            }
+        }
+    )
     def post(self, request):
         try:
             #Lấy tất cả token của user còn hiệu lực (OutstandingToken) của user hiện tại
@@ -230,6 +449,18 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
         context['request'] = self.request
         return context
 
+    @extend_schema(
+        operation_id="user_profile_retrieve",
+        summary="Get user profile",
+        description="Retrieve the current authenticated user's profile information including nested profile data (patient_profile or doctor_profile based on role).",
+        tags=["Accounts"],
+        responses={
+            200: UserSerializer,
+            401: {
+                'description': 'Unauthorized - authentication required'
+            }
+        }
+    )
     def retrieve(self, request, *args, **kwargs):
         """
         Override method retrieve để đảm bảo response format đúng
@@ -241,6 +472,56 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
         instance.refresh_from_db()
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        operation_id="user_profile_update",
+        summary="Update user profile",
+        description="Update the current authenticated user's profile. Supports both PUT (full update) and PATCH (partial update). Can update nested profile data (patient_profile or doctor_profile).",
+        tags=["Accounts"],
+        request=ProfileUpdateSerializer,
+        responses={
+            200: ProfileUpdateSerializer,
+            400: {
+                'description': 'Validation error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'field_name': ['Error message']
+                        }
+                    }
+                }
+            },
+            401: {
+                'description': 'Unauthorized - authentication required'
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Update Patient Profile',
+                value={
+                    'full_name': 'John Doe Updated',
+                    'phone_num': '0987654321',
+                    'patient_profile': {
+                        'address': '456 New St',
+                        'insurance_id': 'INS123456',
+                        'emergency_contact': 'Jane Doe',
+                        'emergency_contact_phone': '0123456789'
+                    }
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Update Doctor Profile',
+                value={
+                    'full_name': 'Dr. Smith Updated',
+                    'phone_num': '0987654321',
+                    'doctor_profile': {
+                        'bio': 'Updated bio information'
+                    }
+                },
+                request_only=True,
+            )
+        ]
+    )
     def update(self, request, *args, **kwargs):
         """
         Override method update để custom response format
@@ -302,6 +583,50 @@ class DoctorListView(generics.ListAPIView):
     serializer_class = DoctorListSerializer
     permission_classes = [AllowAny]  # Public listing
     
+    @extend_schema(
+        operation_id="doctors_list",
+        summary="List all doctors",
+        description="Get a list of all active doctors. Can be filtered by department_id or specialization.",
+        tags=["Accounts"],
+        parameters=[
+            OpenApiParameter(
+                name='department_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Filter doctors by department ID (recommended)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='specialization',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter doctors by specialization name (backward compatible, only used if department_id is not provided)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: {
+                'description': 'List of doctors',
+                'content': {
+                    'application/json': {
+                        'example': [
+                            {
+                                'id': 1,
+                                'full_name': 'Dr. John Smith',
+                                'specialization': 'Cardiology',
+                                'rating': 4.5,
+                                'department': {
+                                    'id': 1,
+                                    'name': 'Cardiology',
+                                    'icon': 'heart'
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    )
     def get_queryset(self):
         """
         Filter doctors by department_id or specialization if provided
