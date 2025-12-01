@@ -264,7 +264,11 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173"
 ]
 if os.getenv('WEBSITE_HOSTNAME'):
-    CORS_ALLOWED_ORIGINS.append(f"https://{os.getenv('WEBSITE_HOSTNAME')}")
+    hostname = os.getenv('WEBSITE_HOSTNAME').rstrip('/')
+    if hostname.startswith('https://'):
+        hostname = hostname[8:]  # Loại bỏ https:// nếu có
+    CORS_ALLOWED_ORIGINS.append(f"https://{hostname}")
+    
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -295,7 +299,7 @@ SPECTACULAR_SETTINGS = {
             'description': 'Development server (Local)'
         },
         {
-            'url': f"https://{os.getenv('WEBSITE_HOSTNAME', 'https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net/')}",
+            'url': f"https://{os.getenv('WEBSITE_HOSTNAME', 'myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net').rstrip('/')}",
             'description': 'Production server'
         }
     ],
