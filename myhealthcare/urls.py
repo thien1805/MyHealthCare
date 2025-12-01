@@ -21,6 +21,11 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
 from apps.accounts.views import ProfileView
 from apps.appointments.views import ServiceViewSet, AppointmentViewSet, DepartmentViewSet, AvailableSlotsView
 
@@ -32,6 +37,15 @@ api_router.register(r'appointments', AppointmentViewSet, basename='appointment')
 
 urlpatterns = [
     path('api/v1/admin/', admin.site.urls),
+    
+    #OpenAPI Schema 
+    path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
+    
+    #Swagger UI (Interactiver API documentation)
+    path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    
+    #Redoc (Alternative documentation UI)
+    path('api/v1/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     
     # Custom appointments URLs (must be before router to avoid conflicts)
     path('api/v1/appointments/available-slots/', AvailableSlotsView.as_view(), name='available-slots'),

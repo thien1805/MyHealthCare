@@ -550,5 +550,13 @@ class AppointmentCancelSerializer(serializers.Serializer):
     Serializer for cancelling appointments
     Used in POST /api/v1/appointments/{id}/cancel/
     """
-    reason = serializers.CharField(required=False, allow_blank=True, help_text="Reason for cancellation") 
+    reason = serializers.CharField(required=False, allow_blank=True, help_text="Reason for cancellation")
+
+
+class AppointmentAssignServiceSerializer(serializers.Serializer):
+    """
+    Serializer for assigning service to appointment
+    Used in POST /api/v1/appointments/{id}/assign-service/
+    """
+    service_id = serializers.IntegerField(required=True, help_text="Service ID to assign to the appointment") 
 
