@@ -208,6 +208,18 @@ class UserSerializer(serializers.ModelSerializer):
             data.pop('doctor_profile', None)
             
         return data
+
+class TokenSerializer(serializers.Serializer):
+    """Serializer for JWT tokens in response"""
+    refresh = serializers.CharField()
+    access = serializers.CharField()
+
+class RegisterResponseSerializer(serializers.Serializer):
+    """Serializer for Register API response"""
+    success = serializers.BooleanField()
+    message = serializers.CharField()
+    user = UserSerializer()
+    tokens = TokenSerializer()
         
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating User profile information"""

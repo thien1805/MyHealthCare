@@ -5,7 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from .models import User, Doctor
-from .serializers import RegisterSerializer, UserSerializer, LoginSerializer, ProfileUpdateSerializer, DoctorProfileSerializer, PatientProfileSerializer
+from .serializers import RegisterSerializer, RegisterResponseSerializer, UserSerializer, LoginSerializer, ProfileUpdateSerializer, DoctorProfileSerializer, PatientProfileSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate, get_user_model, login, logout

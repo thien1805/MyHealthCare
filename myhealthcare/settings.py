@@ -310,7 +310,7 @@ SPECTACULAR_SETTINGS = {
         'displayOperationID': True,
         'filter': True, #Cho phép lọc các endpoint theo tên
         'tagsSorter': 'alpha', #Sắp xếp các tags theo thứ tự alphabet
-        'operationsSorter': 'alpha',
+        'operationsSorter': 'method', #Sắp xếp operations theo HTTP method (GET, POST, PUT, PATCH, DELETE)
     },
     
     'ATUHENTICATION_WHITELIST': [
@@ -328,13 +328,13 @@ SPECTACULAR_SETTINGS = {
     },
     'SECURITY': [{'BearerAuth': []}], #Mặc định yêu cầu JWT cho tất cả endpoints
     
+    # Tags được sắp xếp theo thứ tự logic: Authentication -> User Management -> Resources -> Appointments
     'TAGS': [
-        {'name': 'Authentication', 'description': 'Authentication APIs'},
-        {'name': 'Accounts', 'description': 'API for accounts'},
-        {'name': 'Appointments', 'description': 'API for appointments'},
-        {'name': 'Departments', 'description': 'API for departments'},
-        {'name': 'Services', 'description': 'API for services'},
-        {'name': 'Department', 'description': 'API for department'},
+        {'name': 'Authentication', 'description': 'User authentication APIs (register, login, logout)'},
+        {'name': 'Accounts', 'description': 'User account management APIs (profile, doctors list)'},
+        {'name': 'Departments', 'description': 'Department information APIs'},
+        {'name': 'Services', 'description': 'Medical services and specialties APIs'},
+        {'name': 'Appointments', 'description': 'Appointment management APIs (create, list, update, cancel)'},
     ]
 }
     

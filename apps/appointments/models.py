@@ -104,7 +104,6 @@ class Appointment(models.Model):
         ('confirmed', 'Confirmed'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
-        ('no_show', 'No Show'),
     ]
     
     # Tạo TIME_CHOICES với khoảng cách 30 phút (08:00 - 16:30)
@@ -210,3 +209,69 @@ class Appointment(models.Model):
     
     def __str__(self):
         return f"Appointment #{self.id} - {self.patient.full_name} with Dr. {self.doctor.full_name} on {self.appointment_date} at {self.appointment_time}"
+
+
+class MedicalRecord(models.Model):
+    """
+    Medical Record model - Doctor's medical record for an appointment
+    One-to-one relationship with Appointment
+    """
+    appointment = models.OneToOneField(
+        Appointment,
+        on_delete=models.CASCADE,
+        related_name='medical_record',
+        help_text="Appointment this medical record belongs to"
+    )
+    diagnosis = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Doctor's diagnosis"
+    )
+    prescription = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Prescription details (medications, dosage, instructions)"
+    )
+    treatment_plan = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Treatment plan and recommendations"
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Additional medical notes"
+    )
+    follow_up_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Recommended follow-up date if needed"
+    )
+    vital_signs = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Vital signs (blood pressure, temperature, heart rate, etc.) in JSON format"
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_medical_records',
+        limit_choices_to={'role': 'doctor'},
+        help_text="Doctor who created this medical record"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'medical_records'
+        verbose_name = 'Medical Record'
+        verbose_name_plural = 'Medical Records'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['appointment']),
+            models.Index(fields=['created_by', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"Medical Record for Appointment #{self.appointment.id} - {self.appointment.patient.full_name}"

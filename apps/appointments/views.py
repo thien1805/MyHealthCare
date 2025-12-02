@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
-from .models import Department, Service, Room, Appointment, Department
+from .models import Department, Service, Room, Appointment, MedicalRecord
 from .serializers import (
     DepartmentSerializer,
     ServiceSerializer,
@@ -25,7 +25,9 @@ from .serializers import (
     AppointmentRescheduleSerializer,
     AppointmentCancelSerializer,
     AppointmentAssignServiceSerializer,
-    DepartmentDetailSerializer
+    DepartmentDetailSerializer,
+    MedicalRecordSerializer,
+    MedicalRecordCreateUpdateSerializer
 )
 
 User = get_user_model()
@@ -549,6 +551,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             return AppointmentCancelSerializer
         elif self.action == 'reschedule':
             return AppointmentRescheduleSerializer
+        elif self.action == 'create_medical_record':
+            return MedicalRecordCreateUpdateSerializer
         return AppointmentSerializer
     
     @extend_schema(
@@ -1455,3 +1459,205 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "total_fee": str(appointment.estimated_fee)
             }
         }, status=status.HTTP_200_OK)
+    
+    @extend_schema(
+        operation_id="appointments_create_medical_record",
+        summary="Create or update medical record",
+        description="Create or update a medical record for an appointment. Only the doctor assigned to the appointment can create/update medical records. The appointment must be in 'confirmed' or 'completed' status.",
+        tags=["Appointments"],
+        request=MedicalRecordCreateUpdateSerializer,
+        responses={
+            200: {
+                'description': 'Medical record created/updated successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Medical record created successfully',
+                            'medical_record': {
+                                'id': 1,
+                                'appointment': 1,
+                                'diagnosis': 'Common cold',
+                                'prescription': 'Paracetamol 500mg, 2 tablets every 6 hours',
+                                'treatment_plan': 'Rest and drink plenty of fluids',
+                                'notes': 'Patient should return if symptoms persist',
+                                'follow_up_date': '2024-01-20',
+                                'vital_signs': {
+                                    'blood_pressure': '120/80',
+                                    'temperature': '37.2',
+                                    'heart_rate': '72'
+                                },
+                                'created_by': 2,
+                                'created_by_name': 'Dr. Jane Smith',
+                                'created_at': '2024-01-15T10:30:00Z',
+                                'updated_at': '2024-01-15T10:30:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            201: {
+                'description': 'Medical record created successfully',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Medical record created successfully',
+                            'medical_record': {
+                                'id': 1,
+                                'appointment': 1,
+                                'diagnosis': 'Common cold',
+                                'prescription': 'Paracetamol 500mg, 2 tablets every 6 hours',
+                                'treatment_plan': 'Rest and drink plenty of fluids',
+                                'notes': 'Patient should return if symptoms persist',
+                                'follow_up_date': '2024-01-20',
+                                'vital_signs': {
+                                    'blood_pressure': '120/80',
+                                    'temperature': '37.2',
+                                    'heart_rate': '72'
+                                },
+                                'created_by': 2,
+                                'created_by_name': 'Dr. Jane Smith',
+                                'created_at': '2024-01-15T10:30:00Z',
+                                'updated_at': '2024-01-15T10:30:00Z'
+                            }
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request or business rule violation',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'invalid_status': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot create medical record for appointment with status: booked'
+                                }
+                            },
+                            'validation_error': {
+                                'value': {
+                                    'vital_signs': ['Vital signs must be a JSON object']
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            403: {
+                'description': 'Permission denied',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'not_doctor': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Only doctors can create medical records'
+                                }
+                            },
+                            'not_owner': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'You can only create medical records for your own appointments'
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            404: {
+                'description': 'Appointment not found',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'detail': 'Not found.'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Create Medical Record Example',
+                value={
+                    'diagnosis': 'Common cold',
+                    'prescription': 'Paracetamol 500mg, 2 tablets every 6 hours for 3 days',
+                    'treatment_plan': 'Rest and drink plenty of fluids. Avoid cold drinks.',
+                    'notes': 'Patient should return if symptoms persist after 3 days',
+                    'follow_up_date': '2024-01-20',
+                    'vital_signs': {
+                        'blood_pressure': '120/80',
+                        'temperature': '37.2',
+                        'heart_rate': '72',
+                        'respiratory_rate': '18'
+                    }
+                },
+                request_only=True,
+            )
+        ]
+    )
+    @action(detail=True, methods=['post', 'put'], url_path='medical-record')
+    def create_medical_record(self, request, pk=None):
+        """
+        POST/PUT /api/v1/appointments/{id}/medical-record/
+        Create or update a medical record for an appointment
+        Only the doctor assigned to the appointment can create/update medical records
+        """
+        appointment = self.get_object()
+        
+        # Only doctors can create medical records
+        if request.user.role != 'doctor':
+            return Response({
+                "success": False,
+                "error": "Only doctors can create medical records"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check ownership - only the doctor of this appointment can create medical record
+        if appointment.doctor != request.user:
+            return Response({
+                "success": False,
+                "error": "You can only create medical records for your own appointments"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Only allow medical record for confirmed or completed appointments
+        if appointment.status not in ["confirmed", "completed"]:
+            return Response({
+                "success": False,
+                "error": f"Cannot create medical record for appointment with status: {appointment.status}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if medical record already exists
+        medical_record, created = MedicalRecord.objects.get_or_create(
+            appointment=appointment,
+            defaults={'created_by': request.user}
+        )
+        
+        # If updating existing record, update created_by if not set
+        if not created and not medical_record.created_by:
+            medical_record.created_by = request.user
+        
+        # Validate and save data
+        serializer = MedicalRecordCreateUpdateSerializer(
+            medical_record,
+            data=request.data,
+            partial=not created  # Allow partial update if record exists
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            
+            # Refresh from DB to get updated data
+            medical_record.refresh_from_db()
+            response_serializer = MedicalRecordSerializer(medical_record)
+            
+            return Response({
+                "success": True,
+                "message": "Medical record created successfully" if created else "Medical record updated successfully",
+                "medical_record": response_serializer.data
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        else:
+            return Response({
+                "success": False,
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)

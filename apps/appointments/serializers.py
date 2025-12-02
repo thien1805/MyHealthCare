@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Service, Room, Appointment, Department
+from .models import Service, Room, Appointment, Department, MedicalRecord
 from apps.accounts.models import Doctor
 
 User = get_user_model()
@@ -218,6 +218,67 @@ class AvailableSlotSerializer(serializers.Serializer):
     room = serializers.CharField(help_text="Room number if available", required=False, allow_null=True)
 
 
+class MedicalRecordSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Medical Record model
+    """
+    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
+    
+    class Meta:
+        model = MedicalRecord
+        fields = [
+            'id',
+            'appointment',
+            'diagnosis',
+            'prescription',
+            'treatment_plan',
+            'notes',
+            'follow_up_date',
+            'vital_signs',
+            'created_by',
+            'created_by_name',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = [
+            'id',
+            'appointment',
+            'created_by',
+            'created_by_name',
+            'created_at',
+            'updated_at'
+        ]
+    
+    def validate_vital_signs(self, value):
+        """Validate vital signs JSON structure"""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError("Vital signs must be a JSON object")
+        return value
+
+
+class MedicalRecordCreateUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating/updating Medical Record
+    Used by doctor to create or update medical record
+    """
+    class Meta:
+        model = MedicalRecord
+        fields = [
+            'diagnosis',
+            'prescription',
+            'treatment_plan',
+            'notes',
+            'follow_up_date',
+            'vital_signs',
+        ]
+    
+    def validate_vital_signs(self, value):
+        """Validate vital signs JSON structure"""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError("Vital signs must be a JSON object")
+        return value
+
+
 class AppointmentSerializer(serializers.ModelSerializer):
     """
     Serializer for Appointment model
@@ -228,6 +289,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
     doctor = serializers.SerializerMethodField()
     service = ServiceSerializer(read_only=True)
     room = RoomSerializer(read_only=True)
+    medical_record = MedicalRecordSerializer(read_only=True, required=False)
     
     # Write-only fields for creating/updating
     patient_id = serializers.PrimaryKeyRelatedField(
@@ -284,6 +346,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'cancellation_reason',
             'cancelled_at',
             'rescheduled_from',
+            'medical_record',
             'created_at',
             'updated_at'
         ]
