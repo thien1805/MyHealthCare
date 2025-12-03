@@ -261,7 +261,8 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "http://localhost:5174",
 ]
 if os.getenv('WEBSITE_HOSTNAME'):
     hostname = os.getenv('WEBSITE_HOSTNAME').rstrip('/')
