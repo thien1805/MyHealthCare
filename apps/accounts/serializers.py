@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model #import custom user model
-from django.contrib.auth.tokens import urlsafe_base64_encode, urlsafe_base64_decode, default_token_generator
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import Patient, Doctor
 from django.core.validators import RegexValidator
 import logging
-from django.contrib.auth.tokens import default_token_generator
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
