@@ -16,6 +16,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExampl
 from drf_spectacular.types import OpenApiTypes
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 import logging
+from .serializers import ForgotPasswordSerializer, VerifyResetTokenSerializer, ResetPasswordSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -652,3 +653,81 @@ class DoctorListView(generics.ListAPIView):
             queryset = queryset.filter(specialization__icontains=specialization)
         
         return queryset.order_by('-rating', 'user__full_name')
+    
+
+class ForgotPasswordView(APIView):
+    """
+    API to request password reset
+    POST /api/v1/auth/forgot-password/
+    """
+    permission_classes = [AllowAny]
+    serializer_class = ForgotPasswordSerializer
+    
+    @extend_schema(
+        operation_id="auth_reset_password",
+        summary="Reset password",
+        description="Reset user password using valid reset token.",
+        tags=["Authentication"],
+        request=ResetPasswordSerializer,
+        responses={
+            200: {
+                'description': 'Password reset successful',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Password has been reset successfully. You can now login with your new password.'
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Validation error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'Failed to reset password',
+                            'errors': {
+                                'confirm_password': ['Passwords do not match']
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Reset Password Request',
+                value={
+                    'uid': 'MQ',
+                    'token': 'c6v8xq-1234567890abcdef1234567890ab',
+                    'new_password': 'newpassword123',
+                    'confirm_password': 'newpassword123'
+                },
+                request_only=True,
+            )
+        ]
+    )
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        
+        try:
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                return Response({
+                    "success": True,
+                    "message": "Password has been reset successfully. You can now login with your new password."
+                }, status=status.HTTP_200_OK)
+            return Response({
+                "success": False,
+                "message": "Failed to reset password",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error in ResetPasswordView.post: {str(e)}", exc_info=True)
+            return Response({
+                "success": False,
+                "message": "An error occurred while resetting password. Please try again."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

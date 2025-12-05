@@ -1,8 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model #import custom user model
+from django.contrib.auth.tokens import urlsafe_base64_encode, urlsafe_base64_decode, default_token_generator
+from django.utils.encoding import force_bytes, force_str
+from django.core.mail import send_mail
+from django.conf import settings
 from .models import Patient, Doctor
 from django.core.validators import RegexValidator
 import logging
+from django.contrib.auth.tokens import default_token_generator
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -341,3 +346,165 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 doctor_profile.save()
         
         return instance
+    
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Serializer for requesting password reset"""
+    email = serializers.EmailField(required=True)
+    
+    def validate_email(self, value):
+        """Check if email exists in database"""
+        try: 
+            User.objects.get(email=value)
+        except User.DoesNotExist:
+            """
+            Không nên báo email không tồn tại (security reason)
+            Nhưng vẫn nên trả về success để tránh attacker biết email nào tồn tại
+            """
+            pass
+        return value
+    def save(self):
+        """Generate reset token and send email"""
+        email = self.validated_data["email"]
+        
+        try:
+            user = User.objects.get(email=email)
+            
+            #Generate password reset token
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            #reset link
+            reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
+            
+            #Send email
+            subject = "Password Reset Request - MyHealthCare"
+            message = f"""
+Hello {user.full_name},
+
+You have requested to reset your password for MyHealthCare account.
+
+Please click the link below to reset your password:
+{reset_link}
+
+This link will expire in 24 hours.
+
+If you did not request this password reset, please ignore this email.
+
+Best regards,
+MyHealthCare Team
+            """
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            logger.info(f"Password reset email sent to {email}")
+            return True
+        except User.DoesNotExist:
+            # Email does not exist, but we do not inform the user
+            logger.warning(f"Password reset requested for non-existent email: {email}")
+            return False
+        except Exception as e:
+            logger.error(f"Error sending password reset email to {email}: {str(e)}", exc_info=True)
+            return serializers.ValidationError("Failed to send password reset email. Please try again later.")
+
+class VerifyResetTokenSerializer(serializers.Serializer):
+    """Serializer to verify password reset token"""
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    
+    def validate(self, attrs):
+        """Validate uid and token"""
+        uid = attrs.get('uid')
+        token = attrs.get('token')
+        
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id)
+        
+        #Verify token 
+            if not default_token_generator.check_token(user, token):
+                raise serializers.ValidationError({
+                "token": "Invalid or expired token"
+                })
+            attrs['user'] = user
+        
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist) as e:
+            raise serializers.ValidationError({
+                "uid": "Invalid UID"
+            })
+        return attrs
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """ 
+    Serializer to reset password
+    """
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(write_only=True, min_length=6, required=True)
+    confirm_password = serializers.CharField(write_only=True, min_length=6, required=True)
+    
+    def validate(self, attrs):
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError({
+                "confirm_password": "Passwords do not match"
+            })
+        
+        # Verify token (same as VerifyResetTokenSerializer)
+        uid = attrs.get('uid')
+        token = attrs.get('token')
+        
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id)
+            
+            if not default_token_generator.check_token(user, token):
+                raise serializers.ValidationError({
+                    "token": "Invalid or expired token"
+                })
+            
+            attrs['user'] = user
+            
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError({
+                "uid": "Invalid user ID"
+            })
+        
+        return attrs
+    
+    def save(self):
+        """Reser user password"""
+        user = self.validated_data["user"]
+        new_password = self.validated_data["new_password"]
+        
+        user.set_password(new_password)
+        user.save()
+        
+        logger.info(f"Password reset successfully for user {user.email}")
+        
+        try:
+            send_mail(
+                  subject="Password Reset Successful - MyHealthCare",
+                message=f"""
+Hello {user.full_name},
+
+Your password has been successfully reset.
+
+If you did not perform this action, please contact support immediately.
+
+Best regards,
+MyHealthCare Team
+                """,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except:
+            pass
+            
+        return user
+
+        
+        
