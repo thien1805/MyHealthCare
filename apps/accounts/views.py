@@ -664,6 +664,161 @@ class ForgotPasswordView(APIView):
     serializer_class = ForgotPasswordSerializer
     
     @extend_schema(
+        operation_id="auth_forgot_password",
+        summary="Request password reset",
+        description="Send password reset email to user. Email contains reset link with token.",
+        tags=["Authentication"],
+        request=ForgotPasswordSerializer,
+        responses={
+            200: {
+                'description': 'Password reset email sent',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'If an account exists with this email, a password reset link has been sent.'
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Validation error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'Failed to send password reset email',
+                            'errors': {'email': ['This field is required.']}
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Forgot Password Request',
+                value={'email': 'patient@example.com'},
+                request_only=True,
+            )
+        ]
+    )
+    def post(self, request):
+        """Request password reset"""
+        serializer = ForgotPasswordSerializer(data=request.data)
+        
+        try:
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'success': True,
+                    'message': 'If an account exists with this email, a password reset link has been sent.'
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'success': False,
+                'message': 'Invalid email address',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Error in ForgotPasswordView: {str(e)}")
+            return Response({
+                'success': False,
+                'message': 'An error occurred. Please try again later.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class VerifyResetTokenView(APIView):
+    """
+    API to verify password reset token
+    POST /api/v1/auth/verify-reset-token/
+    """
+    permission_classes = [AllowAny]
+    serializer_class = VerifyResetTokenSerializer
+    
+    @extend_schema(
+        operation_id="auth_verify_reset_token",
+        summary="Verify password reset token",
+        description="Verify that password reset token is valid and not expired.",
+        tags=["Authentication"],
+        request=VerifyResetTokenSerializer,
+        responses={
+            200: {
+                'description': 'Token is valid',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Token is valid',
+                            'valid': True
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Token is invalid or expired',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'message': 'Invalid or expired token',
+                            'valid': False,
+                            'errors': {'token': ['Invalid or expired token']}
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Verify Token Request',
+                value={
+                    'uid': 'MQ',
+                    'token': 'c6v8xq-1234567890abcdef1234567890ab'
+                },
+                request_only=True,
+            )
+        ]
+    )
+    def post(self, request):
+        """Verify reset token"""
+        serializer = VerifyResetTokenSerializer(data=request.data)
+        
+        try:
+            if serializer.is_valid():
+                return Response({
+                    'success': True,
+                    'message': 'Token is valid',
+                    'valid': True
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'success': False,
+                'message': 'Invalid or expired token',
+                'valid': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Error in VerifyResetTokenView: {str(e)}")
+            return Response({
+                'success': False,
+                'message': 'An error occurred',
+                'valid': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ResetPasswordView(APIView):
+    """
+    API to reset password with token
+    POST /api/v1/auth/reset-password/
+    """
+    permission_classes = [AllowAny]
+    serializer_class = ResetPasswordSerializer
+    
+    @extend_schema(
         operation_id="auth_reset_password",
         summary="Reset password",
         description="Reset user password using valid reset token.",
@@ -710,24 +865,27 @@ class ForgotPasswordView(APIView):
         ]
     )
     def post(self, request):
+        """Reset password"""
         serializer = ResetPasswordSerializer(data=request.data)
         
         try:
-            if serializer.is_valid(raise_exception=True):
+            if serializer.is_valid():
                 serializer.save()
                 return Response({
-                    "success": True,
-                    "message": "Password has been reset successfully. You can now login with your new password."
+                    'success': True,
+                    'message': 'Password has been reset successfully. You can now login with your new password.'
                 }, status=status.HTTP_200_OK)
+            
             return Response({
-                "success": False,
-                "message": "Failed to reset password",
-                "errors": serializer.errors
+                'success': False,
+                'message': 'Failed to reset password',
+                'errors': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
+            
         except Exception as e:
-            logger.error(f"Error in ResetPasswordView.post: {str(e)}", exc_info=True)
+            logger.error(f"Error in ResetPasswordView: {str(e)}")
             return Response({
-                "success": False,
-                "message": "An error occurred while resetting password. Please try again."
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+                'success': False,
+                'message': 'An error occurred. Please try again.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
