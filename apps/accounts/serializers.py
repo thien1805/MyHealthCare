@@ -348,37 +348,24 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         return instance
     
 class ForgotPasswordSerializer(serializers.Serializer):
-    """Serializer for requesting password reset"""
     email = serializers.EmailField(required=True)
-    
+
     def validate_email(self, value):
-        """Check if email exists in database"""
-        try: 
-            User.objects.get(email=value)
-        except User.DoesNotExist:
-            """
-            Không nên báo email không tồn tại (security reason)
-            Nhưng vẫn nên trả về success để tránh attacker biết email nào tồn tại
-            """
-            pass
+        # Báo lỗi ngay nếu email chưa tồn tại
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Email này chưa được đăng ký")
         return value
+
     def save(self):
-        """Generate reset token and send email"""
         email = self.validated_data["email"]
-        
-        try:
-            user = User.objects.get(email=email)
-            
-            #Generate password reset token
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            
-            #reset link
-            reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
-            
-            #Send email
-            subject = "Password Reset Request - MyHealthCare"
-            message = f"""
+        user = User.objects.get(email=email)  # Đến đây chắc chắn tồn tại
+
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
+
+        subject = "Password Reset Request - MyHealthCare"
+        message = f"""
 Hello {user.full_name},
 
 You have requested to reset your password for MyHealthCare account.
@@ -392,23 +379,17 @@ If you did not request this password reset, please ignore this email.
 
 Best regards,
 MyHealthCare Team
-            """
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-            logger.info(f"Password reset email sent to {email}")
-            return True
-        except User.DoesNotExist:
-            # Email does not exist, but we do not inform the user
-            logger.warning(f"Password reset requested for non-existent email: {email}")
-            return False
-        except Exception as e:
-            logger.error(f"Error sending password reset email to {email}: {str(e)}", exc_info=True)
-            return serializers.ValidationError("Failed to send password reset email. Please try again later.")
+        """
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        logger.info(f"Password reset email sent to {email}")
+        return True
 
 class VerifyResetTokenSerializer(serializers.Serializer):
     """Serializer to verify password reset token"""
