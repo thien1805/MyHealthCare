@@ -1,4 +1,4 @@
-from rest_framework import status, generics
+from rest_framework import status, generics, serializers
 
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -367,6 +367,7 @@ class LogoutAllView(APIView):
     Blacklist tất cả token của user
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # Dummy serializer for schema generation
     
     @extend_schema(
         operation_id="auth_logout_all",
@@ -476,17 +477,97 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
     @extend_schema(
         operation_id="user_profile_update",
         summary="Update user profile",
-        description="Update the current authenticated user's profile. Supports both PUT (full update) and PATCH (partial update). Can update nested profile data (patient_profile or doctor_profile).",
+        description="""Update the current authenticated user's profile. Supports both PUT (full update) and PATCH (partial update).
+        
+        **Patient Role - Updatable Fields:**
+        - Common: `full_name`, `phone_num` (10 digits)
+        - Patient Profile: `date_of_birth` (YYYY-MM-DD), `gender` (male/female/other), `address`, `insurance_id`, `emergency_contact`, `emergency_contact_phone` (10 digits)
+        
+        **Doctor Role - Updatable Fields:**
+        - Common: `full_name`, `phone_num` (10 digits)
+        - Doctor Profile: `room` (Room ID), `title`, `specialization`, `bio`
+        
+        **Note:** 
+        - All nested profile fields are optional (partial update supported)
+        - `phone_num` and `emergency_contact_phone` must be exactly 10 digits
+        - `room` accepts Room ID (integer), not room_number
+        - Department cannot be changed through this API
+        """,
         tags=["Accounts"],
         request=ProfileUpdateSerializer,
         responses={
-            200: ProfileUpdateSerializer,
+            200: {
+                'description': 'Profile updated successfully',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'patient_success': {
+                                'summary': 'Patient profile updated',
+                                'value': {
+                                    'id': 1,
+                                    'email': 'patient@example.com',
+                                    'full_name': 'John Doe Updated',
+                                    'phone_num': '0987654321',
+                                    'role': 'patient',
+                                    'patient_profile': {
+                                        'date_of_birth': '1995-05-05',
+                                        'gender': 'male',
+                                        'address': '456 New St',
+                                        'insurance_id': 'INS123456',
+                                        'emergency_contact': 'Jane Doe',
+                                        'emergency_contact_phone': '0123456789'
+                                    }
+                                }
+                            },
+                            'doctor_success': {
+                                'summary': 'Doctor profile updated',
+                                'value': {
+                                    'id': 2,
+                                    'email': 'doctor@example.com',
+                                    'full_name': 'Dr. Smith Updated',
+                                    'phone_num': '0987654321',
+                                    'role': 'doctor',
+                                    'doctor_profile': {
+                                        'department_id': 1,
+                                        'department_name': 'Cardiology',
+                                        'room_id': 3,
+                                        'title': 'Senior Doctor',
+                                        'specialization': 'Cardiology',
+                                        'bio': 'Updated bio information'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             400: {
                 'description': 'Validation error',
                 'content': {
                     'application/json': {
-                        'example': {
-                            'field_name': ['Error message']
+                        'examples': {
+                            'phone_invalid': {
+                                'summary': 'Invalid phone number',
+                                'value': {
+                                    'phone_num': ['Phone number must be exactly 10 digits.']
+                                }
+                            },
+                            'emergency_phone_invalid': {
+                                'summary': 'Invalid emergency contact phone',
+                                'value': {
+                                    'patient_profile': {
+                                        'emergency_contact_phone': ['Emergency contact phone must be exactly 10 digits.']
+                                    }
+                                }
+                            },
+                            'room_not_found': {
+                                'summary': 'Room does not exist',
+                                'value': {
+                                    'doctor_profile': {
+                                        'room': ['Invalid pk "999" - object does not exist.']
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -497,12 +578,16 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
         },
         examples=[
             OpenApiExample(
-                'Update Patient Profile',
+                'Update Patient - Full Profile',
+                summary='Update all patient profile fields',
+                description='Update patient full name, phone, and all patient-specific fields',
                 value={
                     'full_name': 'John Doe Updated',
                     'phone_num': '0987654321',
                     'patient_profile': {
-                        'address': '456 New St',
+                        'date_of_birth': '1995-05-05',
+                        'gender': 'male',
+                        'address': '456 New Street, District 1, HCMC',
                         'insurance_id': 'INS123456',
                         'emergency_contact': 'Jane Doe',
                         'emergency_contact_phone': '0123456789'
@@ -511,12 +596,41 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
                 request_only=True,
             ),
             OpenApiExample(
-                'Update Doctor Profile',
+                'Update Patient - Partial',
+                summary='Update only specific patient fields',
+                description='Partial update - only update address and emergency contact',
+                value={
+                    'patient_profile': {
+                        'address': '789 Another St',
+                        'emergency_contact': 'John Smith'
+                    }
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Update Doctor - Full Profile',
+                summary='Update all doctor profile fields',
+                description='Update doctor full name, phone, and all doctor-specific fields',
                 value={
                     'full_name': 'Dr. Smith Updated',
                     'phone_num': '0987654321',
                     'doctor_profile': {
-                        'bio': 'Updated bio information'
+                        'room': 3,
+                        'title': 'Senior Cardiologist',
+                        'specialization': 'Interventional Cardiology',
+                        'bio': '15+ years of experience in cardiology. Board certified. Specializes in interventional procedures.'
+                    }
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Update Doctor - Partial',
+                summary='Update only specific doctor fields',
+                description='Partial update - only update room and bio',
+                value={
+                    'doctor_profile': {
+                        'room': 5,
+                        'bio': 'Updated biography with new qualifications'
                     }
                 },
                 request_only=True,
