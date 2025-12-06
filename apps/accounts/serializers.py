@@ -1,3 +1,4 @@
+from apps.appointments.models import Room
 from rest_framework import serializers
 from django.contrib.auth import get_user_model #import custom user model
 from django.contrib.auth.tokens import default_token_generator
@@ -119,7 +120,16 @@ class LoginSerializer(serializers.Serializer):
 
 # Serializer for Patient Profile
 class PatientProfileSerializer(serializers.ModelSerializer):
-    """Serializer for Patient profile information"""
+    """Serializer for Patient profile information
+    
+    Updatable fields:
+    - date_of_birth: Patient's date of birth (YYYY-MM-DD)
+    - gender: Patient's gender (male/female/other)
+    - address: Patient's residential address
+    - insurance_id: Health insurance ID
+    - emergency_contact: Emergency contact person name
+    - emergency_contact_phone: Emergency contact phone (10 digits)
+    """
     emergency_contact_phone = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -148,23 +158,42 @@ class PatientProfileSerializer(serializers.ModelSerializer):
         return value
 
 class DoctorProfileSerializer(serializers.ModelSerializer):
-    """Serializer for Doctor profile information"""
+    """Serializer for Doctor profile information
+    
+    Updatable fields:
+    - room: Room ID (integer) - Doctor's assigned room
+    - title: Doctor's title (e.g., 'Senior Doctor', 'Resident')
+    - specialization: Medical specialization (e.g., 'Cardiology', 'Pediatrics')
+    - bio: Doctor's biography and qualifications
+    
+    Read-only fields:
+    - department_id: Department ID
+    - department_name: Department name
+    - room_id: Current room ID (for display)
+    """
     department_name = serializers.CharField(source='department.name', read_only=True)
     department_id = serializers.IntegerField(source='department.id', read_only=True)
+    room_id = serializers.IntegerField(source='room.id', read_only=True, allow_null=True)
+    room = serializers.PrimaryKeyRelatedField(
+        queryset=Room.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+        help_text="Room ID to assign to doctor"
+    )
     
     class Meta:
         model = Doctor
         fields = [
             'department_id',
             'department_name',
+            'room',
+            'room_id',
             'title', 
             'specialization', 
-            'license_number', 
-            'experience_years', 
-            'consultation_fee', 
             'bio'
         ] 
-        read_only_fields = ['license_number', 'department_id', 'department_name']
+        read_only_fields = ['department_id', 'department_name', 'room_id']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -227,13 +256,30 @@ class RegisterResponseSerializer(serializers.Serializer):
     tokens = TokenSerializer()
         
 class ProfileUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating User profile information"""
+    """Serializer for updating User profile information
+    
+    Common updatable fields (both roles):
+    - full_name: User's full name
+    - phone_num: Phone number (10 digits)
+    
+    Patient-specific nested fields (patient_profile):
+    - date_of_birth: Date of birth (YYYY-MM-DD)
+    - gender: Gender (male/female/other)
+    - address: Residential address
+    - insurance_id: Health insurance ID
+    - emergency_contact: Emergency contact person name
+    - emergency_contact_phone: Emergency contact phone (10 digits)
+    
+    Doctor-specific nested fields (doctor_profile):
+    - room: Room ID (integer)
+    - title: Doctor's title
+    - specialization: Medical specialization
+    - bio: Doctor's biography
+    """
     # Không khai báo cả 2 profiles ở đây, sẽ dùng to_representation để chỉ hiển thị đúng profile
     class Meta:
         model = User
-        #Chỉ cho phép update những fields này
         fields = ['full_name', 'phone_num']
-        #Chỉ cho phép đọc những fields này
         read_only_fields = ['id','email', 'role', 'created_at', 'updated_at']
     
     def __init__(self, *args, **kwargs):

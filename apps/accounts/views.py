@@ -1,4 +1,4 @@
-from rest_framework import status, generics
+from rest_framework import status, generics, serializers
 
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -36,8 +36,30 @@ class RegisterView(generics.CreateAPIView):
     
     @extend_schema(
         operation_id="auth_register",
-        summary="Register new patient",
-        description="Register a new patient account. Creates both User and Patient profile.",
+        summary="Register new patient account",
+        description="""Register a new patient account in the system.
+        
+        **Process:**
+        1. Validates all required fields (email, password, full_name, phone)
+        2. Creates User account with role='patient'
+        3. Creates Patient profile with additional information
+        4. Generates JWT tokens for immediate login
+        
+        **Required Fields:**
+        - email: Valid email address (must be unique)
+        - password: Minimum 6 characters
+        - password_confirm: Must match password
+        - full_name: Patient's full name
+        - phone_num: 10-digit phone number
+        - role: Must be 'patient'
+        
+        **Optional Patient Fields:**
+        - date_of_birth: Date of birth (YYYY-MM-DD format)
+        - gender: male | female | other
+        - address: Residential address
+        
+        **Response:** Returns user profile and JWT tokens for automatic login.
+        """,
         tags=["Authentication"],
         request=RegisterSerializer,
         responses={
@@ -164,8 +186,30 @@ class LoginView(generics.GenericAPIView):
     
     @extend_schema(
         operation_id="auth_login",
-        summary="Login",
-        description="Login with email and password",
+        summary="User login",
+        description="""Authenticate user and generate JWT tokens.
+        
+        **Process:**
+        1. Validates email and password
+        2. Authenticates user credentials
+        3. Creates Django session
+        4. Generates JWT access and refresh tokens
+        5. Returns user profile and tokens
+        
+        **Authentication:**
+        - Uses email as username
+        - Password is automatically hashed and verified
+        - Account must be active (is_active=True)
+        
+        **Response Tokens:**
+        - access: Short-lived token for API requests (~15 minutes)
+        - refresh: Long-lived token for refreshing access (~7 days)
+        
+        **Security Notes:**
+        - Account is locked if is_active=False
+        - Failed attempts are logged
+        - Session is created for Django admin compatibility
+        """,
         tags=["Authentication"],
         request=LoginSerializer,
         responses={
@@ -264,18 +308,38 @@ class LogoutView(APIView):
     @extend_schema(
         operation_id="auth_logout",
         summary="Logout from current device",
-        description="Logout from current device and blacklist the refresh token. Requires authentication.",
+        description="""Logout user from current device and blacklist the refresh token.
+        
+        **Process:**
+        1. Receives refresh token from request body
+        2. Validates token format and expiration
+        3. Adds token to blacklist (prevents reuse)
+        4. Destroys Django session
+        5. Returns success with optional redirect URL
+        
+        **Token Blacklisting:**
+        - Once blacklisted, the token cannot be used again
+        - Access token remains valid until expiration (~15 minutes)
+        - User needs to login again to get new tokens
+        
+        **Redirect URL:**
+        - Optional field to specify where to redirect after logout
+        - Default: /api/v1/auth/login
+        - Useful for frontend routing
+        
+        **Note:** This only logs out the current device. To logout all devices, use `/api/v1/auth/logout-all/`
+        """,
         tags=["Authentication"],
         request={
             'type': 'object',
             'properties': {
                 'refresh': {
                     'type': 'string',
-                    'description': 'Refresh token to blacklist'
+                    'description': 'Refresh token to blacklist (required)'
                 },
                 'redirect_url': {
                     'type': 'string',
-                    'description': 'Optional redirect URL after logout',
+                    'description': 'URL to redirect after logout (optional)',
                     'default': '/api/v1/auth/login'
                 }
             },
@@ -367,11 +431,33 @@ class LogoutAllView(APIView):
     Blacklist tất cả token của user
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = serializers.Serializer  # Dummy serializer for schema generation
     
     @extend_schema(
         operation_id="auth_logout_all",
         summary="Logout from all devices",
-        description="Logout from all devices and blacklist all refresh tokens for the current user. Requires authentication.",
+        description="""Logout user from all devices by blacklisting all refresh tokens.
+        
+        **Process:**
+        1. Finds all outstanding (non-blacklisted) refresh tokens for the user
+        2. Adds all tokens to blacklist
+        3. Destroys current session
+        4. Forces re-authentication on all devices
+        
+        **Use Cases:**
+        - Security: When user suspects account compromise
+        - Password Change: Force re-login after password reset
+        - Lost Device: Revoke access from all devices
+        - Account Takeover Prevention: Immediate token invalidation
+        
+        **Important Notes:**
+        - ALL existing tokens become invalid immediately
+        - User must login again on every device
+        - This action cannot be undone
+        - Requires current authentication (must be logged in)
+        
+        **Response Status:** 205 Reset Content (successful logout requiring client action)
+        """,
         tags=["Authentication"],
         responses={
             205: {
@@ -452,8 +538,24 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
 
     @extend_schema(
         operation_id="user_profile_retrieve",
-        summary="Get user profile",
-        description="Retrieve the current authenticated user's profile information including nested profile data (patient_profile or doctor_profile based on role).",
+        summary="Get current user profile",
+        description="""Retrieve the authenticated user's complete profile information.
+        
+        **Returns Role-Based Profile:**
+        
+        **Patient Profile Includes:**
+        - User info: id, email, full_name, phone_num, role
+        - Patient-specific: date_of_birth, gender, address, insurance_id, emergency_contact, emergency_contact_phone
+        - Account status: is_active, created_at, updated_at
+        
+        **Doctor Profile Includes:**
+        - User info: id, email, full_name, phone_num, role
+        - Doctor-specific: department (id, name), room (id, number), title, specialization, bio, rating, experience_years
+        - Professional: license_number, consultation_fee, total_reviews
+        - Account status: is_active, created_at, updated_at
+        
+        **Note:** Response only includes profile data relevant to user's role (patient_profile OR doctor_profile, never both).
+        """,
         tags=["Accounts"],
         responses={
             200: UserSerializer,
@@ -476,17 +578,97 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
     @extend_schema(
         operation_id="user_profile_update",
         summary="Update user profile",
-        description="Update the current authenticated user's profile. Supports both PUT (full update) and PATCH (partial update). Can update nested profile data (patient_profile or doctor_profile).",
+        description="""Update the current authenticated user's profile. Supports both PUT (full update) and PATCH (partial update).
+        
+        **Patient Role - Updatable Fields:**
+        - Common: `full_name`, `phone_num` (10 digits)
+        - Patient Profile: `date_of_birth` (YYYY-MM-DD), `gender` (male/female/other), `address`, `insurance_id`, `emergency_contact`, `emergency_contact_phone` (10 digits)
+        
+        **Doctor Role - Updatable Fields:**
+        - Common: `full_name`, `phone_num` (10 digits)
+        - Doctor Profile: `room` (Room ID), `title`, `specialization`, `bio`
+        
+        **Note:** 
+        - All nested profile fields are optional (partial update supported)
+        - `phone_num` and `emergency_contact_phone` must be exactly 10 digits
+        - `room` accepts Room ID (integer), not room_number
+        - Department cannot be changed through this API
+        """,
         tags=["Accounts"],
         request=ProfileUpdateSerializer,
         responses={
-            200: ProfileUpdateSerializer,
+            200: {
+                'description': 'Profile updated successfully',
+                'content': {
+                    'application/json': {
+                        'examples': {
+                            'patient_success': {
+                                'summary': 'Patient profile updated',
+                                'value': {
+                                    'id': 1,
+                                    'email': 'patient@example.com',
+                                    'full_name': 'John Doe Updated',
+                                    'phone_num': '0987654321',
+                                    'role': 'patient',
+                                    'patient_profile': {
+                                        'date_of_birth': '1995-05-05',
+                                        'gender': 'male',
+                                        'address': '456 New St',
+                                        'insurance_id': 'INS123456',
+                                        'emergency_contact': 'Jane Doe',
+                                        'emergency_contact_phone': '0123456789'
+                                    }
+                                }
+                            },
+                            'doctor_success': {
+                                'summary': 'Doctor profile updated',
+                                'value': {
+                                    'id': 2,
+                                    'email': 'doctor@example.com',
+                                    'full_name': 'Dr. Smith Updated',
+                                    'phone_num': '0987654321',
+                                    'role': 'doctor',
+                                    'doctor_profile': {
+                                        'department_id': 1,
+                                        'department_name': 'Cardiology',
+                                        'room_id': 3,
+                                        'title': 'Senior Doctor',
+                                        'specialization': 'Cardiology',
+                                        'bio': 'Updated bio information'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             400: {
                 'description': 'Validation error',
                 'content': {
                     'application/json': {
-                        'example': {
-                            'field_name': ['Error message']
+                        'examples': {
+                            'phone_invalid': {
+                                'summary': 'Invalid phone number',
+                                'value': {
+                                    'phone_num': ['Phone number must be exactly 10 digits.']
+                                }
+                            },
+                            'emergency_phone_invalid': {
+                                'summary': 'Invalid emergency contact phone',
+                                'value': {
+                                    'patient_profile': {
+                                        'emergency_contact_phone': ['Emergency contact phone must be exactly 10 digits.']
+                                    }
+                                }
+                            },
+                            'room_not_found': {
+                                'summary': 'Room does not exist',
+                                'value': {
+                                    'doctor_profile': {
+                                        'room': ['Invalid pk "999" - object does not exist.']
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -497,12 +679,16 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
         },
         examples=[
             OpenApiExample(
-                'Update Patient Profile',
+                'Update Patient - Full Profile',
+                summary='Update all patient profile fields',
+                description='Update patient full name, phone, and all patient-specific fields',
                 value={
                     'full_name': 'John Doe Updated',
                     'phone_num': '0987654321',
                     'patient_profile': {
-                        'address': '456 New St',
+                        'date_of_birth': '1995-05-05',
+                        'gender': 'male',
+                        'address': '456 New Street, District 1, HCMC',
                         'insurance_id': 'INS123456',
                         'emergency_contact': 'Jane Doe',
                         'emergency_contact_phone': '0123456789'
@@ -511,12 +697,41 @@ class ProfileView(generics.RetrieveUpdateAPIView): # Đổi từ RetrieveAPIView
                 request_only=True,
             ),
             OpenApiExample(
-                'Update Doctor Profile',
+                'Update Patient - Partial',
+                summary='Update only specific patient fields',
+                description='Partial update - only update address and emergency contact',
+                value={
+                    'patient_profile': {
+                        'address': '789 Another St',
+                        'emergency_contact': 'John Smith'
+                    }
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Update Doctor - Full Profile',
+                summary='Update all doctor profile fields',
+                description='Update doctor full name, phone, and all doctor-specific fields',
                 value={
                     'full_name': 'Dr. Smith Updated',
                     'phone_num': '0987654321',
                     'doctor_profile': {
-                        'bio': 'Updated bio information'
+                        'room': 3,
+                        'title': 'Senior Cardiologist',
+                        'specialization': 'Interventional Cardiology',
+                        'bio': '15+ years of experience in cardiology. Board certified. Specializes in interventional procedures.'
+                    }
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Update Doctor - Partial',
+                summary='Update only specific doctor fields',
+                description='Partial update - only update room and bio',
+                value={
+                    'doctor_profile': {
+                        'room': 5,
+                        'bio': 'Updated biography with new qualifications'
                     }
                 },
                 request_only=True,
@@ -586,8 +801,32 @@ class DoctorListView(generics.ListAPIView):
     
     @extend_schema(
         operation_id="doctors_list",
-        summary="List all doctors",
-        description="Get a list of all active doctors. Can be filtered by department_id or specialization.",
+        summary="List all active doctors",
+        description="""Get paginated list of active doctors with filtering options.
+        
+        **Query Parameters:**
+        - `department_id` (recommended): Filter by specific department (e.g., ?department_id=1)
+        - `specialization` (legacy): Filter by specialization name (e.g., ?specialization=Cardiology)
+          * Note: Deprecated in favor of department_id
+          * Only used if department_id is not provided
+        
+        **Response Includes:**
+        - Doctor personal info: id, full_name, email, phone
+        - Professional info: title, specialization, bio
+        - Performance: rating, total_reviews
+        - Department: id, name, icon
+        - Room assignment: room_id, room_number (if assigned)
+        - Availability status: is_active
+        
+        **Sorting:**
+        - Primary: rating (highest first)
+        - Secondary: full_name (alphabetical)
+        
+        **Use Cases:**
+        - Patient booking: Show available doctors by department
+        - Doctor directory: Browse all doctors
+        - Search/filter: Find doctors by specialty
+        """,
         tags=["Accounts"],
         parameters=[
             OpenApiParameter(
@@ -665,8 +904,38 @@ class ForgotPasswordView(APIView):
     
     @extend_schema(
         operation_id="auth_forgot_password",
-        summary="Request password reset",
-        description="Send password reset email to user. Email contains reset link with token.",
+        summary="Request password reset email",
+        description="""Initiate password reset process by sending reset link to user's email.
+        
+        **Process:**
+        1. Validates email address format
+        2. Checks if email exists in system (security: always returns success message)
+        3. Generates unique reset token (valid for 24 hours)
+        4. Creates password reset URL with token
+        5. Sends email with reset instructions
+        
+        **Email Content:**
+        - Reset link with embedded uid and token
+        - Expiration notice (24 hours)
+        - Security warning if not requested
+        - Link format: {FRONTEND_URL}/reset-password/{uid}/{token}
+        
+        **Security Features:**
+        - Generic success message (doesn't reveal if email exists)
+        - Token expires after 24 hours
+        - One-time use token (cannot reuse after password change)
+        - Validates email exists before sending
+        
+        **Error Handling:**
+        - Invalid email format → 400 with validation error
+        - Email not found → 200 with generic message (security)
+        - Email send failure → 500 with error message
+        
+        **Configuration:**
+        - EMAIL_BACKEND: Console (dev) or SMTP (production)
+        - FRONTEND_URL: Where reset form is hosted
+        - FROM_EMAIL: Sender email address
+        """,
         tags=["Authentication"],
         request=ForgotPasswordSerializer,
         responses={
@@ -739,8 +1008,41 @@ class VerifyResetTokenView(APIView):
     
     @extend_schema(
         operation_id="auth_verify_reset_token",
-        summary="Verify password reset token",
-        description="Verify that password reset token is valid and not expired.",
+        summary="Verify password reset token validity",
+        description="""Check if password reset token is valid before showing reset form.
+        
+        **Purpose:**
+        - Frontend validation before displaying password reset form
+        - Prevents user frustration from expired/invalid tokens
+        - Provides clear error messages for troubleshooting
+        
+        **Validation Checks:**
+        1. uid format and decoding
+        2. User existence in database
+        3. Token authenticity (not tampered)
+        4. Token expiration (within 24 hours)
+        5. Token usage status (not already used)
+        
+        **Request Parameters:**
+        - uid: Base64 encoded user ID
+        - token: Django password reset token
+        
+        **Response:**
+        - valid: true → Token is good, show reset form
+        - valid: false → Token is bad, show error/resend option
+        
+        **Common Error Scenarios:**
+        - Token expired (>24 hours old)
+        - Token already used (password already reset)
+        - Invalid uid (user not found)
+        - Malformed token (tampered/corrupted)
+        
+        **Use Case Flow:**
+        1. User clicks email link with uid/token
+        2. Frontend calls this endpoint to verify
+        3. If valid → Show password reset form
+        4. If invalid → Show error and resend option
+        """,
         tags=["Authentication"],
         request=VerifyResetTokenSerializer,
         responses={
@@ -820,8 +1122,44 @@ class ResetPasswordView(APIView):
     
     @extend_schema(
         operation_id="auth_reset_password",
-        summary="Reset password",
-        description="Reset user password using valid reset token.",
+        summary="Reset password with valid token",
+        description="""Complete password reset process using valid reset token.
+        
+        **Process:**
+        1. Validates uid and token (same as verify endpoint)
+        2. Validates new password and confirmation match
+        3. Validates password strength (minimum 6 characters)
+        4. Updates user password with secure hash
+        5. Invalidates reset token (one-time use)
+        6. Sends confirmation email
+        
+        **Password Requirements:**
+        - Minimum 6 characters
+        - Must match confirmation password
+        - Automatically hashed with Django's secure hasher
+        
+        **Security Features:**
+        - Token becomes invalid after use
+        - Old password no longer works
+        - All existing sessions terminated (optional)
+        - Confirmation email sent
+        
+        **Post-Reset Actions:**
+        1. Password is immediately changed
+        2. Reset token is invalidated
+        3. Confirmation email sent to user
+        4. User can login with new password
+        
+        **Error Scenarios:**
+        - Passwords don't match → 400
+        - Token expired/invalid → 400
+        - User not found → 400
+        - Password too short → 400
+        
+        **Success Response:**
+        - Clear message indicating successful reset
+        - User should be redirected to login page
+        """,
         tags=["Authentication"],
         request=ResetPasswordSerializer,
         responses={
