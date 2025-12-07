@@ -1,6 +1,6 @@
 # backend/services/ai_service.py
 from datetime import datetime
-import openai
+from openai import OpenAI
 from decouple import config
 import json
 from django.core.cache import cache
@@ -19,9 +19,17 @@ class OpenRouterService:
         self.model = "anthropic/claude-3.5-sonnet"
         self.site_url = "https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net"
         
+        # Initialize OpenAI client with OpenRouter base URL
+        self.client = None
         if self.api_key:
-            openai.api_key = self.api_key
-            openai.api_base = self.base_url
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                default_headers={
+                    "HTTP-Referer": self.site_url,
+                    "X-Title": "MyHealthCare AI Service",
+                }
+            )
     
     def _get_available_departments(self):
         """
@@ -57,19 +65,15 @@ class OpenRouterService:
         Returns:
             str: Response content or None if error
         """
-        if not self.api_key:
+        if not self.client:
             return {"error": "API key not configured."}
         
         model = model or self.model
         
         try:
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=model,
                 messages=messages,
-                headers={
-                    "HTTP-Referer": self.site_url,
-                    "X-Title": "MyHealthCare AI Service",
-                }
             )
             return response.choices[0].message.content
         except Exception as e:
