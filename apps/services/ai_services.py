@@ -119,11 +119,11 @@ class OpenRouterService:
         **Requirements:**
             1. Suggest only clinics in the above list
             2. Return JSON response with the following structure:
-                {
+                {{
                     "primary_department": "primary clinic name",
                     "reason": "brief explanation in Vietnamese",
-                    "urgency": "low|medium|high",
-                }
+                    "urgency": "low|medium|high"
+                }}
             3. Be careful: if symptoms are unclear or vague, suggest "Internal Medicine Department" as the primary clinic
             4. Return JSON only, no other text
             5. Reply in language with which the patient interacted (Vietnamese or English)
