@@ -1,7 +1,7 @@
 # backend/services/ai_service.py
 from datetime import datetime
 from openai import OpenAI
-from decouple import config
+import os
 import json
 from django.core.cache import cache
 from apps.appointments.models import Department
@@ -14,7 +14,7 @@ class OpenRouterService:
     """
     
     def __init__(self):
-        self.api_key = config('OPENROUTER_API_KEY', '')
+        self.api_key = os.environ.get('OPENROUTER_API_KEY', '')
         self.base_url = "https://openrouter.ai/api/v1"
         self.model = "anthropic/claude-3.5-sonnet"
         self.site_url = "https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net"
