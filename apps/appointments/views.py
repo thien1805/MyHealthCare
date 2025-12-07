@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, time as dt_time
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
+import json
 
 from .models import Department, Service, Room, Appointment, MedicalRecord
 from .serializers import (
@@ -29,6 +30,7 @@ from .serializers import (
     MedicalRecordSerializer,
     MedicalRecordCreateUpdateSerializer
 )
+from apps.services.ai_services import ai_service
 
 User = get_user_model()
 
@@ -289,6 +291,252 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == "retrieve":
             return DepartmentDetailSerializer
         return DepartmentSerializer
+
+
+class SuggestDepartmentView(APIView):
+    """
+    API View to suggest medical departments based on patient symptoms
+    Uses AI to analyze symptoms and recommend appropriate departments
+    """
+    permission_classes = [IsAuthenticated]  # Public access - no authentication required
+    
+    
+    def post(self, request):
+        """
+        POST /api/v1/appointments/suggest-department/
+        Suggest appropriate medical department based on symptoms
+        """
+        
+    @extend_schema(
+        operation_id="suggest_department",
+        summary="AI suggests medical department based on symptoms",
+        description="""Suggest appropriate medical department based on symptoms using AI.
+
+    **How It Works:**
+    1. Describe your symptoms in Vietnamese or English
+    2. AI analyzes and recommends the best department
+    3. Get explanation and urgency level
+
+    **Request:**
+    - `symptoms` (required): Describe your health issue
+    - `age` (optional): Patient age (helps with suggestion)
+    - `gender` (optional): Male/Female/Other
+
+    **Response Fields:**
+    - `primary_department`: Recommended department with id, name, icon, description
+    - `reason`: Why this department is recommended
+    - `urgency`: Level (low/medium/high)
+
+    **Important:**
+    - This is NOT medical diagnosis
+    - For urgent cases (urgency=high), go to ER immediately
+    - Always consult with doctor for proper diagnosis
+    - Results are AI suggestions only
+
+    **Examples:**
+    - Symptoms: "Sốt cao, ho liên tục" → Respiratory Medicine
+    - Symptoms: "Chest pain" → Cardiology (urgency: high)
+    - Symptoms: "Đau bụng" → General Medicine
+        """,
+        tags=["Appointments", "AI"],
+        request={
+            'type': 'object',
+            'properties': {
+                'symptoms': {'type': 'string', 'description': 'Describe your symptoms'},
+                'age': {'type': 'integer', 'description': 'Your age (optional)'},
+                'gender': {'type': 'string', 'description': 'male/female/other (optional)'}
+            },
+            'required': ['symptoms']
+        },
+        responses={
+            200: {
+                'description': 'Department suggestion',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'primary_department': {
+                                'id': 1,
+                                'name': 'Cardiology',
+                                'icon': '❤️',
+                                'description': 'Heart and cardiovascular care'
+                            },
+                            'reason': 'Your symptoms match cardiology symptoms',
+                            'urgency': 'high'
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid input',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'symptoms field is required'
+                        }
+                    }
+                }
+            },
+            500: {
+                'description': 'AI service error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'AI service temporarily unavailable'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Request - Vietnamese Symptoms',
+                value={
+                    'symptoms': 'Sốt cao 38.5 độ, ho liên tục suốt 3 ngày, khó thở, mệt mỏi',
+                    'gender': 'male'
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - English Symptoms (High Urgency)',
+                value={
+                    'symptoms': 'Chest pain radiating to left arm, shortness of breath, sweating, weakness',
+                    'age': 55,
+                    'gender': 'male'
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Abdominal Pain',
+                value={
+                    'symptoms': 'Đau bụng phần dưới bên phải, buồn nôn, không có sốt',
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Response - High Urgency (Cardiology)',
+                value={
+                    'success': True,
+                    'primary_department': {
+                        'id': 2,
+                        'name': 'Cardiology',
+                        'icon': '❤️',
+                        'description': 'Heart and cardiovascular diseases treatment'
+                    },
+                    'reason': 'Chest pain with radiation to left arm, shortness of breath, and sweating are typical symptoms of cardiac issues. This requires urgent evaluation by a cardiologist.',
+                    'urgency': 'high'
+                },
+                response_only=True,
+            ),
+            OpenApiExample(
+                'Response - Medium Urgency (Pediatrics)',
+                value={
+                    'success': True,
+                    'primary_department': {
+                        'id': 1,
+                        'name': 'Pediatrics',
+                        'icon': '👶',
+                        'description': 'Medical care for infants and children'
+                    },
+                    'reason': 'High fever, continuous cough for 3 days with difficulty breathing suggests respiratory infection. Child needs evaluation to rule out pneumonia or bronchitis.',
+                    'urgency': 'medium'
+                },
+                response_only=True,
+            ),
+        ]
+    )
+    def post(self, request):
+        """
+        POST /api/v1/appointments/suggest-department/
+        Suggest appropriate medical department based on symptoms
+        """
+
+        # Get symptoms from request
+        symptoms = request.data.get('symptoms', '').strip()
+        
+        # Validate symptoms input
+        if not symptoms:
+            return Response({
+                'success': False,
+                'error': 'symptoms field is required and cannot be empty'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(symptoms) < 5:
+            return Response({
+                'success': False,
+                'error': 'symptoms description is too short. Please provide more details.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+    
+        try:
+            patient_user = request.user if request.user.is_authenticated and request.user.role == "patient" else None
+            
+            ai_response = ai_service.suggest_department(symptoms, patient_user)
+            
+            if not ai_response:
+                return Response({
+                    'success': False,
+                    'error': 'Failed to get response from AI service',
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # AI returns dict; if not, bail out
+            suggestion_data = ai_response if isinstance(ai_response, dict) else {}
+            if not suggestion_data:
+                return Response({
+                    'success': False,
+                    'error': 'AI service returned empty response'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            primary_dept_name = suggestion_data.get('primary_department', '')
+            primary_department = None
+            if primary_dept_name:
+                primary_department = Department.objects.filter(
+                    is_active=True,
+                    name__iexact=primary_dept_name
+                ).first()
+                if not primary_department:
+                    primary_department = Department.objects.filter(
+                        is_active=True,
+                        name__icontains=primary_dept_name
+                    ).first()
+                    
+            if not primary_department:
+                primary_department = Department.objects.filter(
+                    is_active=True,
+                    name__icontains='General'
+                ).first() 
+            # If no General Medicine found, get any active department
+            if not primary_department:
+                primary_department = Department.objects.filter(is_active=True).first()
+            
+            if not primary_department:
+                return Response({
+                    'success': False,
+                    'error': 'No departments available'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Build response
+            response_data = {
+                'success': True,
+                'primary_department': {
+                    'id': primary_department.id,
+                    'name': primary_department.name,
+                    'icon': primary_department.icon,
+                    'description': primary_department.description,
+                },
+                'reason': suggestion_data.get('reason', 'Based on your symptoms'),
+                'urgency': suggestion_data.get('urgency', 'medium').lower(),
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Error in suggest_department: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'An unexpected error occurred while processing your request',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
@@ -712,7 +960,50 @@ class AvailableSlotsView(APIView):
                     }
                 }
             }
-        }
+        },
+        examples=[
+            OpenApiExample(
+                'Request - Check Today Availability',
+                value=None,
+                description='GET /api/v1/appointments/available-slots/?doctor_id=5&date=2024-12-20',
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Check Next Week with Department',
+                value=None,
+                description='GET /api/v1/appointments/available-slots/?doctor_id=5&date=2024-12-27&department_id=1',
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Response - Available Slots',
+                value={
+                    'date': '2024-12-20',
+                    'doctor': {
+                        'id': 5,
+                        'full_name': 'Dr. Sarah Johnson',
+                        'specialization': 'Cardiology'
+                    },
+                    'department': {
+                        'id': 1,
+                        'name': 'Cardiology',
+                        'icon': '❤️'
+                    },
+                    'available_slots': [
+                        {'time': '08:00', 'available': True, 'room': '201'},
+                        {'time': '08:30', 'available': True, 'room': '201'},
+                        {'time': '09:00', 'available': False, 'room': None},
+                        {'time': '09:30', 'available': True, 'room': '201'},
+                        {'time': '10:00', 'available': True, 'room': '201'},
+                        {'time': '10:30', 'available': False, 'room': None},
+                        {'time': '11:00', 'available': True, 'room': '201'},
+                        {'time': '14:00', 'available': True, 'room': '201'},
+                        {'time': '14:30', 'available': True, 'room': '201'},
+                        {'time': '15:00', 'available': True, 'room': '201'},
+                    ]
+                },
+                response_only=True,
+            ),
+        ]
     )
     def get(self, request):
         """
@@ -996,18 +1287,79 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         },
         examples=[
             OpenApiExample(
-                'Book Appointment Example',
+                'Request - Book Cardiology Appointment',
                 value={
-                    'doctor_id': 2,
+                    'doctor_id': 5,
                     'department_id': 1,
-                    'appointment_date': '2024-01-15',
+                    'appointment_date': '2024-12-25',
                     'appointment_time': '09:00:00',
-                    'symptoms': 'Chest pain',
-                    'reason': 'Regular checkup',
-                    'notes': 'First time visit'
+                    'symptoms': 'Chest pain and irregular heartbeat for 2 days',
+                    'reason': 'Follow-up consultation for previous heart condition',
+                    'notes': 'Patient has history of hypertension'
                 },
                 request_only=True,
-            )
+            ),
+            OpenApiExample(
+                'Request - Book Pediatrics Appointment',
+                value={
+                    'doctor_id': 8,
+                    'department_id': 2,
+                    'appointment_date': '2024-12-22',
+                    'appointment_time': '10:30:00',
+                    'symptoms': 'High fever 39°C for 3 days, cough, loss of appetite',
+                    'reason': 'Child is unwell',
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Response - Appointment Booked Successfully',
+                value={
+                    'success': True,
+                    'message': 'Appointment booked successfully',
+                    'appointment': {
+                        'id': 25,
+                        'patient': {
+                            'id': 3,
+                            'full_name': 'John Doe',
+                            'email': 'john@example.com',
+                            'phone': '+84901234567'
+                        },
+                        'doctor': {
+                            'id': 5,
+                            'full_name': 'Dr. Sarah Johnson',
+                            'specialization': 'Interventional Cardiology',
+                            'rating': 4.8,
+                            'department': {
+                                'id': 1,
+                                'name': 'Cardiology',
+                                'icon': '❤️'
+                            }
+                        },
+                        'department': {
+                            'id': 1,
+                            'name': 'Cardiology',
+                            'icon': '❤️',
+                            'health_examination_fee': '300000.00'
+                        },
+                        'appointment_date': '2024-12-25',
+                        'appointment_time': '09:00:00',
+                        'status': 'booked',
+                        'symptoms': 'Chest pain and irregular heartbeat for 2 days',
+                        'reason': 'Follow-up consultation for previous heart condition',
+                        'notes': 'Patient has history of hypertension',
+                        'estimated_fee': '300000.00',
+                        'room': {
+                            'id': 3,
+                            'room_number': '201',
+                            'floor': 2,
+                            'department': 'Cardiology'
+                        },
+                        'created_at': '2024-12-20T14:30:00Z',
+                        'updated_at': '2024-12-20T14:30:00Z'
+                    }
+                },
+                response_only=True,
+            ),
         ]
     )
     def create(self, request, *args, **kwargs):
@@ -1262,17 +1614,43 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                             'department': {
                                 'id': 1,
                                 'name': 'Cardiology',
-                                'icon': 'heart'
+                                'icon': '❤️'
                             },
                             'doctors': [
                                 {
-                                    'id': 1,
-                                    'full_name': 'Dr. John Doe',
-                                    'specialization': 'Cardiology',
-                                    'rating': 4.5
+                                    'id': 5,
+                                    'user_id': 5,
+                                    'full_name': 'Dr. John Smith',
+                                    'specialization': 'Interventional Cardiology',
+                                    'rating': 4.8,
+                                    'total_reviews': 142,
+                                    'avatar_url': 'https://example.com/avatars/john.jpg',
+                                    'title': 'Professor',
+                                    'bio': 'Over 20 years of experience in cardiac procedures',
+                                    'room': {
+                                        'id': 3,
+                                        'room_number': '201',
+                                        'floor': 2
+                                    }
+                                },
+                                {
+                                    'id': 8,
+                                    'user_id': 8,
+                                    'full_name': 'Dr. Sarah Johnson',
+                                    'specialization': 'Preventive Cardiology',
+                                    'rating': 4.6,
+                                    'total_reviews': 98,
+                                    'avatar_url': 'https://example.com/avatars/sarah.jpg',
+                                    'title': 'Associate Professor',
+                                    'bio': 'Specializing in heart disease prevention',
+                                    'room': {
+                                        'id': 4,
+                                        'room_number': '202',
+                                        'floor': 2
+                                    }
                                 }
                             ],
-                            'count': 1
+                            'count': 2
                         }
                     }
                 }
@@ -1297,7 +1675,21 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                     }
                 }
             }
-        }
+        },
+        examples=[
+            OpenApiExample(
+                'Request - Get Cardiology Doctors',
+                value=None,
+                description='GET /api/v1/appointments/doctors-by-department/?department_id=1',
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Get Pediatrics Doctors',
+                value=None,
+                description='GET /api/v1/appointments/doctors-by-department/?department_id=2',
+                request_only=True,
+            ),
+        ]
     )
     @action(detail=False, methods=['get'], url_path='doctors-by-department', permission_classes=[IsAuthenticated])
     def doctors_by_department(self, request):
@@ -1532,8 +1924,108 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             ),
         ],
         responses={
-            200: AppointmentSerializer(many=True),
-        }
+            200: {
+                'description': 'Appointments retrieved successfully',
+                'content': {
+                    'application/json': {
+                        'example': [
+                            {
+                                'id': 15,
+                                'patient': {
+                                    'id': 3,
+                                    'full_name': 'John Doe',
+                                    'email': 'john@example.com'
+                                },
+                                'doctor': {
+                                    'id': 5,
+                                    'full_name': 'Dr. Sarah Johnson',
+                                    'specialization': 'Cardiology',
+                                    'department': {
+                                        'id': 1,
+                                        'name': 'Cardiology',
+                                        'icon': '❤️'
+                                    }
+                                },
+                                'department': {
+                                    'id': 1,
+                                    'name': 'Cardiology',
+                                    'icon': '❤️',
+                                    'health_examination_fee': '300000.00'
+                                },
+                                'appointment_date': '2024-12-20',
+                                'appointment_time': '09:00:00',
+                                'status': 'confirmed',
+                                'symptoms': 'Chest pain and shortness of breath',
+                                'reason': 'Follow-up consultation',
+                                'estimated_fee': '300000.00',
+                                'room': {
+                                    'id': 3,
+                                    'room_number': '201',
+                                    'floor': 2
+                                },
+                                'created_at': '2024-12-10T10:30:00Z'
+                            },
+                            {
+                                'id': 12,
+                                'patient': {
+                                    'id': 3,
+                                    'full_name': 'John Doe',
+                                    'email': 'john@example.com'
+                                },
+                                'doctor': {
+                                    'id': 8,
+                                    'full_name': 'Dr. Michael Chen',
+                                    'specialization': 'Internal Medicine',
+                                    'department': {
+                                        'id': 9,
+                                        'name': 'Internal Medicine',
+                                        'icon': '👨‍⚕️'
+                                    }
+                                },
+                                'department': {
+                                    'id': 9,
+                                    'name': 'Internal Medicine',
+                                    'icon': '👨‍⚕️',
+                                    'health_examination_fee': '200000.00'
+                                },
+                                'appointment_date': '2024-11-15',
+                                'appointment_time': '14:00:00',
+                                'status': 'completed',
+                                'symptoms': 'Fever and headache',
+                                'reason': 'General checkup',
+                                'estimated_fee': '200000.00',
+                                'room': {
+                                    'id': 15,
+                                    'room_number': '901',
+                                    'floor': 9
+                                },
+                                'created_at': '2024-11-10T15:20:00Z'
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Request - All My Appointments',
+                value=None,
+                description='GET /api/v1/appointments/my-appointments/',
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Upcoming Confirmed Only',
+                value=None,
+                description='GET /api/v1/appointments/my-appointments/?status=confirmed&date_from=2024-12-01',
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Completed This Month',
+                value=None,
+                description='GET /api/v1/appointments/my-appointments/?status=completed&date_from=2024-12-01&date_to=2024-12-31',
+                request_only=True,
+            ),
+        ]
     )
     @action(detail=False, methods=['get'], url_path='my-appointments')
     def my_appointments(self, request):
@@ -1656,29 +2148,42 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                             'success': True,
                             'message': 'Appointment cancelled successfully',
                             'appointment': {
-                                'id': 1,
+                                'id': 15,
+                                'patient': {
+                                    'id': 3,
+                                    'full_name': 'John Doe',
+                                    'email': 'john@example.com'
+                                },
+                                'doctor': {
+                                    'id': 5,
+                                    'full_name': 'Dr. Sarah Johnson',
+                                    'specialization': 'Cardiology'
+                                },
+                                'appointment_date': '2024-12-20',
+                                'appointment_time': '09:00:00',
                                 'status': 'cancelled',
-                                'cancellation_reason': 'Changed my mind'
+                                'cancellation_reason': 'Emergency came up, need to reschedule',
+                                'cancelled_at': '2024-12-10T14:30:00Z'
                             }
                         }
                     }
                 }
             },
             400: {
-                'description': 'Invalid request or business rule violation',
+                'description': 'Cannot cancel appointment',
                 'content': {
                     'application/json': {
                         'examples': {
-                            'already_cancelled': {
-                                'value': {
-                                    'success': False,
-                                    'error': 'Cannot cancel appointment with status: cancelled'
-                                }
-                            },
                             'too_late': {
                                 'value': {
                                     'success': False,
                                     'error': 'Cannot cancel appointment within 24 hours of scheduled time'
+                                }
+                            },
+                            'already_cancelled': {
+                                'value': {
+                                    'success': False,
+                                    'error': 'Cannot cancel appointment with status: cancelled'
                                 }
                             },
                             'past_appointment': {
@@ -1715,12 +2220,19 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         },
         examples=[
             OpenApiExample(
-                'Cancel Appointment Example',
+                'Request - Cancel with reason',
                 value={
-                    'reason': 'Changed my mind'
+                    'reason': 'Emergency came up, need to reschedule to next week'
                 },
                 request_only=True,
-            )
+            ),
+            OpenApiExample(
+                'Request - Doctor unavailable',
+                value={
+                    'reason': 'Doctor is unavailable due to sudden emergency duty'
+                },
+                request_only=True,
+            ),
         ]
     )
     @action(detail=True, methods=['post'], url_path='cancel')
@@ -1984,14 +2496,42 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         },
         examples=[
             OpenApiExample(
-                'Reschedule Appointment Example',
+                'Request - Reschedule to Next Week',
                 value={
-                    'new_date': '2024-01-20',
+                    'new_date': '2024-12-27',
                     'new_time': '10:00:00',
-                    'reason': 'Need to change time'
+                    'reason': 'Have a business meeting at the original time'
                 },
                 request_only=True,
-            )
+            ),
+            OpenApiExample(
+                'Request - Reschedule to Later Same Day',
+                value={
+                    'new_date': '2024-12-20',
+                    'new_time': '15:30:00',
+                    'reason': 'Emergency came up in the morning'
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Response - Successful Reschedule',
+                value={
+                    'success': True,
+                    'message': 'Appointment rescheduled successfully',
+                    'appointment': {
+                        'id': 15,
+                        'appointment_date': '2024-12-27',
+                        'appointment_time': '10:00:00',
+                        'status': 'booked',
+                        'rescheduled_from': {
+                            'date': '2024-12-20',
+                            'time': '09:00'
+                        },
+                        'notes': 'Rescheduled: Have a business meeting at the original time'
+                    }
+                },
+                response_only=True,
+            ),
         ]
     )
     @action(detail=True, methods=['put'], url_path='reschedule')
@@ -2264,12 +2804,45 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         },
         examples=[
             OpenApiExample(
-                'Assign Service Example',
+                'Request - Assign X-Ray Service',
                 value={
-                    'service_id': 1
+                    'service_id': 5
                 },
                 request_only=True,
-            )
+            ),
+            OpenApiExample(
+                'Request - Assign Blood Test',
+                value={
+                    'service_id': 12
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Response - Service Assigned Successfully',
+                value={
+                    'success': True,
+                    'message': 'Service assigned successfully',
+                    'appointment': {
+                        'id': 15,
+                        'service': {
+                            'id': 5,
+                            'name': 'Chest X-Ray',
+                            'price': '200000.00',
+                            'department': {
+                                'id': 6,
+                                'name': 'Respiratory Medicine'
+                            }
+                        },
+                        'estimated_fee': '420000.00'
+                    },
+                    'fee_breakdown': {
+                        'health_examination_fee': '220000.00',
+                        'service_fee': '200000.00',
+                        'total_fee': '420000.00'
+                    }
+                },
+                response_only=True,
+            ),
         ]
     )
     @action(detail=True, methods=['post'], url_path='assign-service')
@@ -2619,22 +3192,53 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         },
         examples=[
             OpenApiExample(
-                'Create Medical Record Example',
+                'Request - Create Medical Record (Common Cold)',
                 value={
-                    'diagnosis': 'Common cold',
-                    'prescription': 'Paracetamol 500mg, 2 tablets every 6 hours for 3 days',
-                    'treatment_plan': 'Rest and drink plenty of fluids. Avoid cold drinks.',
-                    'notes': 'Patient should return if symptoms persist after 3 days',
-                    'follow_up_date': '2024-01-20',
+                    'diagnosis': 'Acute Upper Respiratory Tract Infection (Common Cold)',
+                    'prescription': '1. Paracetamol 500mg - 2 tablets every 6 hours for fever/pain\n2. Cetirizine 10mg - 1 tablet before bed for 5 days\n3. Vitamin C 1000mg - 1 tablet daily',
+                    'treatment_plan': 'Rest at home for 3-5 days. Drink plenty of warm fluids. Avoid cold drinks and air conditioning. Use steam inhalation 2-3 times daily.',
+                    'notes': 'Patient should return if fever persists beyond 3 days or symptoms worsen. No antibiotic needed at this stage.',
+                    'follow_up_date': '2024-12-25',
                     'vital_signs': {
                         'blood_pressure': '120/80',
-                        'temperature': '37.2',
-                        'heart_rate': '72',
-                        'respiratory_rate': '18'
+                        'temperature': '37.8',
+                        'heart_rate': '78',
+                        'respiratory_rate': '18',
+                        'oxygen_saturation': '98'
                     }
                 },
                 request_only=True,
-            )
+            ),
+            OpenApiExample(
+                'Request - Create Medical Record (Diabetes Follow-up)',
+                value={
+                    'diagnosis': 'Type 2 Diabetes Mellitus - Well Controlled',
+                    'prescription': '1. Metformin 500mg - 1 tablet twice daily after meals\n2. Continue current insulin regimen\n3. Blood glucose monitoring strips - as needed',
+                    'treatment_plan': 'Continue current medication. Maintain diabetic diet (low sugar, low carb). Exercise 30 minutes daily. Monitor blood glucose before breakfast and 2 hours after dinner.',
+                    'notes': 'HbA1c levels improved from 8.2% to 6.8%. Patient shows good compliance with diet and medication. Encouraged to continue.',
+                    'follow_up_date': '2025-03-01',
+                    'vital_signs': {
+                        'blood_pressure': '135/85',
+                        'temperature': '36.8',
+                        'heart_rate': '72',
+                        'weight': '78.5',
+                        'bmi': '27.3',
+                        'fasting_blood_glucose': '118'
+                    }
+                },
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Update Medical Record',
+                value={
+                    'diagnosis': 'Hypertension Stage 1 - Updated',
+                    'prescription': '1. Amlodipine 5mg - 1 tablet daily in the morning (increased from previous dose)\n2. Lifestyle modifications continue',
+                    'treatment_plan': 'Increased medication dose due to persistently elevated BP readings. Continue low-salt diet and regular exercise.',
+                    'notes': 'Patient reports compliance with medication. BP still slightly elevated. Will monitor for 2 weeks and reassess.',
+                    'follow_up_date': '2025-01-05'
+                },
+                request_only=True,
+            ),
         ]
     )
     @action(detail=True, methods=['post', 'put'], url_path='medical-record')
@@ -2701,3 +3305,220 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "success": False,
                 "errors": serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
+            
+class HealthChatbotView(APIView):
+    """
+    API View for Health Q&A Chatbot
+    Provides general health information and medical guidance
+    """
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        operation_id="health_chatbot",
+        summary="Health Q&A Chatbot - Ask health questions",
+        description="""Get answers to general health questions from AI chatbot.
+        
+**Purpose:**
+Answer common health questions, provide medical information, and guide patients 
+on when to seek professional medical attention.
+
+**Capabilities:**
+- Answer general health questions
+- Explain symptoms and conditions
+- Provide health tips and wellness advice
+- Guide on when to book appointments
+- Multilingual support (Vietnamese & English)
+
+**Request Body:**
+- `message` (string, required): Your health question
+- `conversation_history` (array, optional): Previous messages for context
+  - Format: [{"role": "user|assistant", "content": "text"}]
+
+**Response:**
+- `success`: Request success status
+- `response`: Chatbot's answer
+- `message_id`: Unique message identifier
+- `timestamp`: Response time
+
+**Important Disclaimers:**
+- NOT a substitute for professional medical diagnosis
+- NOT emergency medical advice (call 911 for emergencies)
+- For urgent health concerns, visit hospital immediately
+- Always consult doctor for proper medical diagnosis
+- This is educational information only
+
+**Example Questions:**
+- "Làm sao để phòng ngừa cảm cúm?"
+- "What are symptoms of diabetes?"
+- "Khi nào tôi cần đến bệnh viện?"
+- "How long does COVID recovery take?"
+
+**Response Time:**
+- Typically 1-3 seconds
+- May vary based on question complexity
+
+**Error Handling:**
+- 400: Missing or invalid message
+- 500: Chatbot service unavailable
+        """,
+        tags=["AI", "Health Chatbot"],
+        request={
+            'type': 'object',
+            'properties': {
+                'message': {
+                    'type': 'string',
+                    'description': 'Your health question'
+                },
+                'conversation_history': {
+                    'type': 'array',
+                    'description': 'Previous messages (optional)',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'role': {'type': 'string', 'enum': ['user', 'assistant']},
+                            'content': {'type': 'string'}
+                        }
+                    }
+                }
+            },
+            'required': ['message']
+        },
+        responses={
+            200: {
+                'description': 'Chatbot response',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'response': 'Cảm cúm là bệnh do virus gây ra...',
+                            'message_id': 'msg_abc123',
+                            'timestamp': '2025-12-07T10:30:00Z'
+                        }
+                    }
+                }
+            },
+            400: {
+                'description': 'Invalid request',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'message is required'
+                        }
+                    }
+                }
+            },
+            500: {
+                'description': 'Service error',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': False,
+                            'error': 'Chatbot service unavailable'
+                        }
+                    }
+                }
+            }
+        },
+        examples=[
+            OpenApiExample(
+                'Request - Fever Question (Vietnamese)',
+                value={'message': 'Bị sốt 38°C liên tục 2 ngày kèm đau đầu, nên làm gì?'},
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Diabetes Question (English)',
+                value={'message': 'What are the symptoms of diabetes and when should I get tested?'},
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Request - Prevention Question',
+                value={'message': 'Làm sao để phòng ngừa cảm cúm trong mùa lạnh?'},
+                request_only=True,
+            ),
+            OpenApiExample(
+                'Response - Fever Advice',
+                value={
+                    'success': True,
+                    'response': 'Sốt 38°C kèm đau đầu trong 2 ngày có thể do cảm cúm hoặc viêm xoang. Bạn nên: 1) Uống đủ nước, 2) Nghỉ ngơi đầy đủ, 3) Sử dụng hạ sốt nếu cần. Nếu sốt không hạ sau 3 ngày hoặc có biểu hiện nặng, vui lòng đặt lịch khám với bác sĩ.',
+                    'message_id': 'msg_xyz789',
+                    'timestamp': '2025-12-07T10:30:00Z'
+                },
+                response_only=True,
+            ),
+            OpenApiExample(
+                'Response - Diabetes Information',
+                value={
+                    'success': True,
+                    'response': 'Diabetes symptoms include excessive thirst, frequent urination, unexplained weight loss, and fatigue. It\'s best to get tested if you experience these symptoms. Testing typically includes fasting blood sugar or HbA1c test. I recommend booking an appointment with our Endocrinology department for proper screening.',
+                    'message_id': 'msg_abc456',
+                    'timestamp': '2025-12-07T10:35:00Z'
+                },
+                response_only=True,
+            ),
+        ]
+    )
+    def post(self, request):
+        """POST /api/v1/chatbot/health-qa/"""
+        import uuid
+        
+        # Get message from request
+        message = request.data.get('message', '').strip()
+        
+        # Validate message
+        if not message:
+            return Response({
+                'success': False,
+                'error': 'message is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(message) < 3:
+            return Response({
+                'success': False,
+                'error': 'Please ask a more detailed question'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(message) > 2000:
+            return Response({
+                'success': False,
+                'error': 'Message too long (max 2000 characters)'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get optional conversation history
+        conversation_history = request.data.get('conversation_history', [])
+        
+        if not isinstance(conversation_history, list):
+            conversation_history = []
+        
+        # Limit to last 10 messages
+        if len(conversation_history) > 10:
+            conversation_history = conversation_history[-10:]
+        
+        try:
+            # Call AI chatbot
+            response_text = ai_service.health_chatbot(message, conversation_history)
+            
+            if not response_text:
+                return Response({
+                    'success': False,
+                    'error': 'Failed to get response from chatbot'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # Generate unique message ID
+            message_id = f"msg_{uuid.uuid4().hex[:12]}"
+            
+            response_data = {
+                'success': True,
+                'response': response_text,
+                'message_id': message_id,
+                'timestamp': timezone.now().isoformat()
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Health Chatbot Error: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Chatbot service temporarily unavailable'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -27,7 +27,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 from apps.accounts.views import ProfileView
-from apps.appointments.views import ServiceViewSet, AppointmentViewSet, DepartmentViewSet, AvailableSlotsView
+from apps.appointments.views import ServiceViewSet, AppointmentViewSet, DepartmentViewSet, AvailableSlotsView, SuggestDepartmentView, HealthChatbotView
 
 # Create main API router for browsable API root
 api_router = DefaultRouter()
@@ -49,7 +49,10 @@ urlpatterns = [
     
     # Custom appointments URLs (must be before router to avoid conflicts)
     path('api/v1/appointments/available-slots/', AvailableSlotsView.as_view(), name='available-slots'),
-    
+    path('api/v1/appointments/suggest-department/', SuggestDepartmentView.as_view(), name='suggest-department'),
+    path('api/v1/ai/health-qa/', HealthChatbotView.as_view(), name='health-chatbot'),    #AI service URLs
+
+
     # API Root - Browsable API interface (shows all available endpoints)
     path('api/v1/', include(api_router.urls)),
     
@@ -67,6 +70,7 @@ urlpatterns = [
     # Endpoint để làm mới (refresh) ACCESS Token đã hết hạn
     # POST yêu cầu refresh token
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
 ]
 
 

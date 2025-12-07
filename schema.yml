@@ -1,0 +1,3846 @@
+openapi: 3.0.3
+info:
+  title: MyHealthCare API
+  version: 1.0.0
+  description: API Documentation for MyHealthCare
+paths:
+  /api/v1/appointments/:
+    get:
+      operationId: appointments_list
+      description: "Get paginated list of appointments with automatic role-based filtering.\n\
+        \        \n        **Role-Based Access Control:**\n        - **Patients**:\
+        \ See only their own appointments (auto-filtered by user ID)\n        - **Doctors**:\
+        \ See only appointments assigned to them (auto-filtered by doctor ID)\n  \
+        \      - **Admins**: See all appointments in the system (no filtering)\n \
+        \       \n        **Appointment Data Includes:**\n        - Patient information\
+        \ (full name, email, phone)\n        - Doctor information (full name, specialization,\
+        \ department)\n        - Appointment date and time\n        - Status (booked,\
+        \ confirmed, completed, cancelled)\n        - Department and room details\n\
+        \        - Symptoms and reason for visit\n        - Medical record ID (if\
+        \ created)\n        - Fee information (estimated and actual)\n        - Notes\
+        \ from patient and doctor\n        \n        **Pagination:**\n        - Default\
+        \ page size: 10 results\n        - Maximum page size: 100 results\n      \
+        \  - Response includes: count, next, previous, results\n        \n       \
+        \ **Sorting:**\n        - Default: Most recent appointments first\n      \
+        \  - Order by: appointment_date (descending), then appointment_time (descending)\n\
+        \        - Newest bookings appear at the top\n        \n        **Status Values:**\n\
+        \        - `booked`: Initially created, awaiting confirmation\n        - `confirmed`:\
+        \ Doctor/staff confirmed the appointment\n        - `completed`: Appointment\
+        \ finished, may have medical record\n        - `cancelled`: Cancelled by patient\
+        \ or doctor\n        \n        **Query Parameters:**\n        - `page`: Page\
+        \ number (default: 1)\n        - `page_size`: Results per page (default: 10,\
+        \ max: 100)\n        \n        **Use Cases:**\n        - Patient dashboard:\
+        \ View appointment history\n        - Doctor schedule: See daily/weekly appointments\n\
+        \        - Admin management: Monitor all appointments\n        - Appointment\
+        \ calendar: Display in calendar view\n        - Receptionist desk: Check today's\
+        \ appointments\n        \n        **Response Structure:**\n        ```json\n\
+        \        {\n          \"count\": 25,\n          \"next\": \"http://api.../appointments/?page=2\"\
+        ,\n          \"previous\": null,\n          \"results\": [...]\n        }\n\
+        \        ```\n        "
+      summary: List appointments with role-based filtering
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Number of results per page (max 100)
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentList'
+          description: ''
+    post:
+      operationId: appointments_create
+      description: |-
+        POST /api/v1/appointments/
+        Book a new appointment
+        Room will be automatically assigned from doctor's room or department
+        Only patients can book appointments lấy health_examintion_fee từ dept
+        Service được doctor assign sau khi thăm khám
+      tags:
+      - appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentCreate'
+          description: ''
+  /api/v1/appointments/{id}/:
+    get:
+      operationId: appointments_retrieve
+      description: "Get complete details of a specific appointment by ID.\n      \
+        \  \n        **Access Control:**\n        - Patients: Can view only their\
+        \ own appointments\n        - Doctors: Can view only appointments assigned\
+        \ to them\n        - Admins: Can view any appointment\n        - 404 error\
+        \ if appointment doesn't exist or user lacks permission\n        \n      \
+        \  **Detailed Information Included:**\n        - **Patient Details:**\n  \
+        \        - Full name, email, phone number\n          - Date of birth, gender\n\
+        \          - Emergency contact information\n          - Insurance ID\n   \
+        \     \n        - **Doctor Details:**\n          - Full name, specialization\n\
+        \          - Department affiliation\n          - Room assignment\n       \
+        \   - Rating and reviews count\n        \n        - **Appointment Info:**\n\
+        \          - Date and time\n          - Status (booked/confirmed/completed/cancelled)\n\
+        \          - Room number and department\n          - Created and updated timestamps\n\
+        \        \n        - **Medical Details:**\n          - Patient's symptoms\n\
+        \          - Reason for visit\n          - Patient notes\n          - Doctor\
+        \ notes (if any)\n        \n        - **Financial Info:**\n          - Estimated\
+        \ consultation fee\n          - Actual fee charged (if completed)\n      \
+        \  \n        - **Medical Record:**\n          - Medical record ID (if created)\n\
+        \          - Link to full medical record details\n        \n        **Use\
+        \ Cases:**\n        - Appointment detail page\n        - Patient viewing booking\
+        \ confirmation\n        - Doctor reviewing pre-appointment info\n        -\
+        \ Admin checking appointment specifics\n        - Receptionist verifying patient\
+        \ arrival\n        \n        **Status Interpretation:**\n        - `booked`:\
+        \ Awaiting confirmation, patient can cancel\n        - `confirmed`: Confirmed\
+        \ by staff, patient should attend\n        - `completed`: Visit finished,\
+        \ check for medical record\n        - `cancelled`: No longer active, reason\
+        \ may be in notes\n        \n        **Response Example:**\n        Returns\
+        \ complete AppointmentSerializer data with nested relationships.\n        "
+      summary: Retrieve detailed appointment information
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Appointment not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+    put:
+      operationId: appointments_update
+      description: |-
+        ViewSet for Appointment model
+        POST /api/v1/appointments/ - Book new appointment
+        GET /api/v1/appointments/my-appointments/ - Get patient's appointments
+        POST /api/v1/appointments/{id}/cancel/ - Cancel appointment
+        PUT /api/v1/appointments/{id}/reschedule/ - Reschedule appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+    patch:
+      operationId: appointments_partial_update
+      description: |-
+        ViewSet for Appointment model
+        POST /api/v1/appointments/ - Book new appointment
+        GET /api/v1/appointments/my-appointments/ - Get patient's appointments
+        POST /api/v1/appointments/{id}/cancel/ - Cancel appointment
+        PUT /api/v1/appointments/{id}/reschedule/ - Reschedule appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+    delete:
+      operationId: appointments_destroy
+      description: |-
+        ViewSet for Appointment model
+        POST /api/v1/appointments/ - Book new appointment
+        GET /api/v1/appointments/my-appointments/ - Get patient's appointments
+        POST /api/v1/appointments/{id}/cancel/ - Cancel appointment
+        PUT /api/v1/appointments/{id}/reschedule/ - Reschedule appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - appointments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/appointments/{id}/assign-service/:
+    post:
+      operationId: appointments_assign_service
+      description: "Allow doctors to assign additional medical services during/after\
+        \ consultation.\n        \n        **Authorization & Permissions:**\n    \
+        \    - **Only doctors** can assign services (403 error for patients/admins)\n\
+        \        - Doctor can only assign to **their own appointments**\n        -\
+        \ Cannot assign to appointments of other doctors\n        \n        **Service\
+        \ Assignment Business Logic:**\n        \n        **When to Assign Services:**\n\
+        \        - During consultation: Doctor determines patient needs X-Ray, blood\
+        \ test, etc.\n        - After examination: Based on diagnosis\n        - Service\
+        \ adds to the total fee\n        \n        **Initial Booking vs Service Assignment:**\n\
+        \        1. **Initial Booking**: Patient pays `health_examination_fee` (consultation\
+        \ fee from department)\n        2. **After Consultation**: Doctor assigns\
+        \ services (X-Ray, CT Scan, lab tests, etc.)\n        3. **Final Fee**: `estimated_fee`\
+        \ = health_examination_fee + service_fee\n        \n        **Status Requirements:**\n\
+        \        - Can only assign to: `confirmed` or `completed` appointments\n \
+        \       - Cannot assign to: `booked`, `cancelled`, `no_show`\n        - Reason:\
+        \ Services assigned during/after actual visit\n        \n        **Department\
+        \ Matching:**\n        - Service must belong to appointment's department\n\
+        \        - Ensures service is relevant to doctor's specialty\n        - Example:\
+        \ Cardiology doctor assigns Cardiology services only\n        - Returns 400\
+        \ error if department mismatch\n        \n        **Required Field:**\n  \
+        \      - `service_id`: ID of the service to assign\n        \n        **Validation\
+        \ Rules:**\n        1. Appointment exists and accessible\n        2. User\
+        \ is a doctor (not patient/admin)\n        3. Doctor owns the appointment\n\
+        \        4. Appointment status is confirmed or completed\n        5. Service\
+        \ exists and is active\n        6. Service belongs to appointment's department\n\
+        \        \n        **Assignment Process:**\n        1. Doctor views patient\
+        \ during appointment\n        2. Doctor determines needed service (e.g., blood\
+        \ test)\n        3. POST to assign-service with service_id\n        4. System\
+        \ validates all rules\n        5. Service assigned to appointment\n      \
+        \  6. estimated_fee updated: base_fee + service_fee\n        7. Fee breakdown\
+        \ returned in response\n        \n        **Fee Calculation:**\n        -\
+        \ **health_examination_fee**: Base consultation fee (from department)\n  \
+        \      - **service_fee**: Price of assigned service (from service model)\n\
+        \        - **total_fee**: health_examination_fee + service_fee\n        \n\
+        \        **Response Data:**\n        - Success confirmation\n        - Updated\
+        \ appointment with assigned service\n        - Fee breakdown showing:\n  \
+        \        - health_examination_fee (base)\n          - service_fee (added)\n\
+        \          - total_fee (sum)\n        \n        **Use Cases:**\n        -\
+        \ Doctor orders lab test during checkup\n        - Cardiologist requests ECG\
+        \ for patient\n        - Orthopedist orders X-Ray\n        - General practitioner\
+        \ assigns blood work\n        \n        **Service Examples:**\n        - X-Ray\
+        \ Imaging\n        - Blood Test (Complete Blood Count)\n        - ECG (Electrocardiogram)\n\
+        \        - CT Scan\n        - Ultrasound\n        - Laboratory Analysis\n\
+        \        \n        **Multiple Services:**\n        Currently supports one\
+        \ service per appointment. For multiple services:\n        - Call endpoint\
+        \ multiple times (each service separately), OR\n        - Future enhancement:\
+        \ Accept array of service_ids\n        \n        **Error Scenarios:**\n  \
+        \      - 400: Missing service_id, wrong status, department mismatch\n    \
+        \    - 403: Not a doctor, not your appointment\n        - 404: Appointment\
+        \ or service not found\n        \n        **Best Practices:**\n        - Assign\
+        \ services during consultation, not before\n        - Verify service is appropriate\
+        \ for department\n        - Explain fee increase to patient\n        - Document\
+        \ service reason in medical record\n        \n        **Financial Flow:**\n\
+        \        1. Patient books: Pays/owes health_examination_fee\n        2. Doctor\
+        \ assigns service: Fee increases by service_fee\n        3. Patient completes\
+        \ payment: Total = examination + service\n        \n        **Note:**\n  \
+        \      Service assignment does NOT create medical record automatically. Use\
+        \ the create_medical_record endpoint after completing examination.\n     \
+        \   "
+      summary: Doctor assigns medical service to appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentAssignServiceRequest'
+            examples:
+              AssignServiceExample:
+                value:
+                  service_id: 1
+                summary: Assign Service Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentAssignServiceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentAssignServiceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Service assigned successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Service assigned successfully
+                      appointment:
+                        id: 1
+                        service:
+                          id: 1
+                          name: X-Ray
+                          price: '200000.00'
+                        estimated_fee: '700000.00'
+                      fee_breakdown:
+                        health_examination_fee: '500000.00'
+                        service_fee: '200000.00'
+                        total_fee: '700000.00'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request or business rule violation
+                content:
+                  application/json:
+                    examples:
+                      missing_service_id:
+                        value:
+                          success: false
+                          error: service_id is required
+                      invalid_status:
+                        value:
+                          success: false
+                          error: 'Cannot assign service to appointment with status:
+                            booked'
+                      wrong_department:
+                        value:
+                          success: false
+                          error: Service does not belong to the appointment's department
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Permission denied
+                content:
+                  application/json:
+                    examples:
+                      not_doctor:
+                        value:
+                          success: false
+                          error: Only doctors can assign services to appointments
+                      not_owner:
+                        value:
+                          success: false
+                          error: You can only assign service to your own appointments
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Appointment or service not found
+                content:
+                  application/json:
+                    examples:
+                      appointment_not_found:
+                        value:
+                          detail: Not found.
+                      service_not_found:
+                        value:
+                          success: false
+                          error: Service not found or inactive
+          description: ''
+  /api/v1/appointments/{id}/cancel/:
+    post:
+      operationId: appointments_cancel
+      description: "Cancel an existing appointment with business rules enforcement.\n\
+        \        \n        **Authorization & Permissions:**\n        - **Patients**:\
+        \ Can cancel only their own appointments\n        - **Doctors**: Can cancel\
+        \ appointments assigned to them\n        - **Admins**: Can cancel any appointment\n\
+        \        - 403 error if user tries to cancel someone else's appointment\n\
+        \        \n        **Cancellation Rules:**\n        \n        1. **24-Hour\
+        \ Minimum Notice:**\n           - Must cancel at least 24 hours before appointment\
+        \ time\n           - Example: Appointment at 2024-01-15 14:00 → Can cancel\
+        \ until 2024-01-14 14:00\n           - Prevents last-minute cancellations\n\
+        \           - Returns 400 error if cancelled too late\n        \n        2.\
+        \ **Status Restrictions:**\n           - Can only cancel appointments with\
+        \ status: `booked` or `confirmed`\n           - Cannot cancel if already:\
+        \ `completed`, `cancelled`, `no_show`\n           - Prevents double-cancellation\n\
+        \        \n        3. **Past Appointments:**\n           - Cannot cancel appointments\
+        \ in the past\n           - Validates appointment_date against today\n   \
+        \        - Returns 400 error for past dates\n        \n        **Required\
+        \ Field:**\n        - `reason` (string): Explanation for cancellation\n  \
+        \        - Required for tracking and analytics\n          - Helps improve\
+        \ service quality\n          - Examples: \"Emergency came up\", \"Doctor's\
+        \ request\", \"Scheduling conflict\"\n        \n        **Cancellation Process:**\n\
+        \        1. User requests cancellation with reason\n        2. System validates\
+        \ 24-hour rule and current status\n        3. Appointment status changed to\
+        \ `cancelled`\n        4. Cancellation reason saved in appointment record\n\
+        \        5. Time slot becomes available for other patients\n        6. (Future:\
+        \ Email notification sent to patient/doctor)\n        \n        **Response\
+        \ Data:**\n        - Success confirmation message\n        - Updated appointment\
+        \ object with status='cancelled'\n        - Cancellation reason stored\n \
+        \       \n        **Side Effects:**\n        - Time slot released for rebooking\n\
+        \        - Room becomes available\n        - Statistics updated (cancellation\
+        \ rate)\n        - No refund processing (examination fee is consultation fee,\
+        \ not deposit)\n        \n        **Use Cases:**\n        - Patient emergency:\
+        \ Cannot attend appointment\n        - Doctor unavailability: Doctor cancels\
+        \ their schedule\n        - Scheduling conflict: Patient needs to reschedule\n\
+        \        - Administrative cancellation: Hospital closure, system maintenance\n\
+        \        \n        **Error Scenarios:**\n        - 400: Too late (within 24\
+        \ hours), already cancelled, past appointment\n        - 403: Not your appointment\
+        \ (permission denied)\n        - 404: Appointment doesn't exist\n        \n\
+        \        **Best Practices:**\n        - Always provide meaningful cancellation\
+        \ reason\n        - Check cancellation deadline before showing cancel button\n\
+        \        - Offer reschedule option alongside cancel\n        - Display 24-hour\
+        \ policy clearly to users\n        \n        **Note:**\n        After cancellation,\
+        \ patients should use the booking endpoint to create a new appointment if\
+        \ they want to reschedule.\n        "
+      summary: Cancel appointment with 24-hour notice requirement
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCancelRequest'
+            examples:
+              CancelAppointmentExample:
+                value:
+                  reason: Changed my mind
+                summary: Cancel Appointment Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentCancelRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentCancelRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Appointment cancelled successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Appointment cancelled successfully
+                      appointment:
+                        id: 1
+                        status: cancelled
+                        cancellation_reason: Changed my mind
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request or business rule violation
+                content:
+                  application/json:
+                    examples:
+                      already_cancelled:
+                        value:
+                          success: false
+                          error: 'Cannot cancel appointment with status: cancelled'
+                      too_late:
+                        value:
+                          success: false
+                          error: Cannot cancel appointment within 24 hours of scheduled
+                            time
+                      past_appointment:
+                        value:
+                          success: false
+                          error: Cannot cancel an appointment that has already passed
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Permission denied
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      error: You can only cancel your own appointments
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Appointment not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+  /api/v1/appointments/{id}/medical-record/:
+    post:
+      operationId: appointments_create_medical_record
+      description: "Create detailed medical record documenting diagnosis, prescription,\
+        \ and treatment plan.\n        \n        **Authorization & Permissions:**\n\
+        \        - **Only doctors** can create/update medical records\n        - Doctor\
+        \ must be assigned to the appointment\n        - Cannot create records for\
+        \ other doctors' appointments\n        \n        **Medical Record Purpose:**\n\
+        \        Documents complete consultation including:\n        - Patient's diagnosis\n\
+        \        - Prescribed medications\n        - Treatment recommendations\n \
+        \       - Vital signs measurements\n        - Doctor's clinical notes\n  \
+        \      - Follow-up scheduling\n        \n        **When to Create Medical\
+        \ Record:**\n        - After completing patient examination\n        - During\
+        \ consultation (real-time documentation)\n        - When appointment status\
+        \ is `confirmed` or `completed`\n        - Cannot create for `booked`, `cancelled`,\
+        \ or `no_show` appointments\n        \n        **Status Requirements:**\n\
+        \        - `confirmed`: Appointment happening now, can document\n        -\
+        \ `completed`: Consultation finished, finalizing record\n        - Other statuses:\
+        \ 400 error (record requires actual visit)\n        \n        **Create vs\
+        \ Update Behavior:**\n        - **POST**: Creates new record if none exists,\
+        \ updates if exists (idempotent)\n        - **PUT**: Same as POST (both methods\
+        \ supported)\n        - One medical record per appointment (enforced by database)\n\
+        \        - Existing records: Updates all fields, partial update allowed\n\
+        \        \n        **Required Fields:**\n        - `diagnosis`: Medical diagnosis\
+        \ (e.g., \"Acute bronchitis\", \"Type 2 Diabetes\")\n        - `prescription`:\
+        \ Medication details with dosage and duration\n          - Format: \"Drug\
+        \ name dose, frequency, duration\"\n          - Example: \"Amoxicillin 500mg,\
+        \ 3 times daily for 7 days\"\n        - `treatment_plan`: Recommended actions\
+        \ and lifestyle advice\n          - Example: \"Rest for 3 days, avoid cold\
+        \ drinks, increase fluid intake\"\n        \n        **Optional Fields:**\n\
+        \        - `notes`: Additional clinical observations\n          - Doctor's\
+        \ private notes\n          - Patient behavior/compliance notes\n         \
+        \ - Risk factors or concerns\n        \n        - `follow_up_date`: Date for\
+        \ next visit (YYYY-MM-DD)\n          - Used for chronic conditions\n     \
+        \     - Post-surgery checkups\n          - Monitoring treatment progress\n\
+        \        \n        - `vital_signs`: JSON object with measurements\n      \
+        \    - blood_pressure: \"120/80\" (mmHg)\n          - temperature: \"37.2\"\
+        \ (°C)\n          - heart_rate: \"72\" (bpm)\n          - respiratory_rate:\
+        \ \"18\" (breaths/min)\n          - oxygen_saturation: \"98\" (%)\n      \
+        \    - weight: \"70\" (kg)\n          - height: \"175\" (cm)\n        \n \
+        \       **Vital Signs Format:**\n        ```json\n        {\n          \"\
+        blood_pressure\": \"120/80\",\n          \"temperature\": \"37.2\",\n    \
+        \      \"heart_rate\": \"72\",\n          \"respiratory_rate\": \"18\",\n\
+        \          \"oxygen_saturation\": \"98\",\n          \"weight\": \"70.5\"\
+        ,\n          \"height\": \"175\"\n        }\n        ```\n        \n     \
+        \   **Medical Record Creation Process:**\n        1. Doctor completes patient\
+        \ examination\n        2. Doctor documents findings in system\n        3.\
+        \ POST to /appointments/{id}/medical-record/\n        4. System validates\
+        \ doctor ownership and status\n        5. Creates MedicalRecord linked to\
+        \ appointment\n        6. Stores created_by (doctor's user ID)\n        7.\
+        \ Timestamps: created_at and updated_at\n        8. Returns complete medical\
+        \ record data\n        \n        **Updating Existing Record:**\n        1.\
+        \ Medical record already exists for appointment\n        2. Doctor submits\
+        \ updated data (POST or PUT)\n        3. System updates existing record (no\
+        \ duplicate)\n        4. Updates updated_at timestamp\n        5. created_by\
+        \ remains unchanged\n        6. Returns updated medical record\n        \n\
+        \        **Response Data:**\n        - Success confirmation (created or updated)\n\
+        \        - Complete medical record including:\n          - id: Medical record\
+        \ ID\n          - appointment: Appointment ID\n          - diagnosis, prescription,\
+        \ treatment_plan\n          - notes, follow_up_date\n          - vital_signs\
+        \ (JSON object)\n          - created_by: Doctor's user ID\n          - created_by_name:\
+        \ Doctor's full name\n          - created_at, updated_at timestamps\n    \
+        \    \n        **Use Cases:**\n        - General consultation: Diagnosis +\
+        \ prescription\n        - Chronic disease management: Treatment plan + follow-up\n\
+        \        - Emergency visit: Vital signs + immediate treatment\n        - Routine\
+        \ checkup: Vital signs documentation\n        - Specialist consultation: Detailed\
+        \ diagnosis + referral notes\n        \n        **Integration with Appointment:**\n\
+        \        - Medical record links to appointment (one-to-one)\n        - Can\
+        \ access via appointment.medical_record\n        - Appointment status often\
+        \ changed to `completed` after record creation\n        - Medical record ID\
+        \ stored in appointment response\n        \n        **Privacy & Security:**\n\
+        \        - Only assigned doctor can create/view/update\n        - Patient\
+        \ can view their own medical records\n        - Admins can view all records\
+        \ (audit trail)\n        - Contains sensitive health information (HIPAA/GDPR\
+        \ compliance)\n        \n        **Best Practices:**\n        - Create record\
+        \ immediately after consultation\n        - Include comprehensive vital signs\
+        \ when available\n        - Be specific in diagnosis (use medical terminology)\n\
+        \        - Prescription: Include dosage, frequency, duration\n        - Treatment\
+        \ plan: Actionable, clear instructions\n        - Follow-up date: Set for\
+        \ chronic conditions or monitoring\n        - Notes: Document anything unusual\
+        \ or important\n        \n        **Error Scenarios:**\n        - 400: Invalid\
+        \ status, validation errors (vital_signs format)\n        - 403: Not a doctor,\
+        \ not your appointment\n        - 404: Appointment doesn't exist\n       \
+        \ \n        **Validation Rules:**\n        - vital_signs must be valid JSON\
+        \ object (if provided)\n        - follow_up_date must be future date\n   \
+        \     - diagnosis, prescription, treatment_plan cannot be empty\n        \n\
+        \        **Common Prescription Format:**\n        ```\n        1. Paracetamol\
+        \ 500mg - 2 tablets every 6 hours for 3 days\n        2. Amoxicillin 500mg\
+        \ - 1 capsule 3 times daily for 7 days\n        3. Cetirizine 10mg - 1 tablet\
+        \ before bed for 5 days\n        ```\n        \n        **Status Code Logic:**\n\
+        \        - 201 Created: New medical record created\n        - 200 OK: Existing\
+        \ medical record updated\n        \n        **Note:**\n        After creating\
+        \ medical record, consider changing appointment status to `completed` using\
+        \ a separate endpoint (future feature).\n        "
+      summary: Create or update medical record after consultation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreateUpdateRequest'
+            examples:
+              CreateMedicalRecordExample:
+                value:
+                  diagnosis: Common cold
+                  prescription: Paracetamol 500mg, 2 tablets every 6 hours for 3 days
+                  treatment_plan: Rest and drink plenty of fluids. Avoid cold drinks.
+                  notes: Patient should return if symptoms persist after 3 days
+                  follow_up_date: '2024-01-20'
+                  vital_signs:
+                    blood_pressure: 120/80
+                    temperature: '37.2'
+                    heart_rate: '72'
+                    respiratory_rate: '18'
+                summary: Create Medical Record Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreateUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Medical record created/updated successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Medical record created successfully
+                      medical_record:
+                        id: 1
+                        appointment: 1
+                        diagnosis: Common cold
+                        prescription: Paracetamol 500mg, 2 tablets every 6 hours
+                        treatment_plan: Rest and drink plenty of fluids
+                        notes: Patient should return if symptoms persist
+                        follow_up_date: '2024-01-20'
+                        vital_signs:
+                          blood_pressure: 120/80
+                          temperature: '37.2'
+                          heart_rate: '72'
+                        created_by: 2
+                        created_by_name: Dr. Jane Smith
+                        created_at: '2024-01-15T10:30:00Z'
+                        updated_at: '2024-01-15T10:30:00Z'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                description: Medical record created successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Medical record created successfully
+                      medical_record:
+                        id: 1
+                        appointment: 1
+                        diagnosis: Common cold
+                        prescription: Paracetamol 500mg, 2 tablets every 6 hours
+                        treatment_plan: Rest and drink plenty of fluids
+                        notes: Patient should return if symptoms persist
+                        follow_up_date: '2024-01-20'
+                        vital_signs:
+                          blood_pressure: 120/80
+                          temperature: '37.2'
+                          heart_rate: '72'
+                        created_by: 2
+                        created_by_name: Dr. Jane Smith
+                        created_at: '2024-01-15T10:30:00Z'
+                        updated_at: '2024-01-15T10:30:00Z'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request or business rule violation
+                content:
+                  application/json:
+                    examples:
+                      invalid_status:
+                        value:
+                          success: false
+                          error: 'Cannot create medical record for appointment with
+                            status: booked'
+                      validation_error:
+                        value:
+                          vital_signs:
+                          - Vital signs must be a JSON object
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Permission denied
+                content:
+                  application/json:
+                    examples:
+                      not_doctor:
+                        value:
+                          success: false
+                          error: Only doctors can create medical records
+                      not_owner:
+                        value:
+                          success: false
+                          error: You can only create medical records for your own
+                            appointments
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Appointment not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+    put:
+      operationId: appointments_create_medical_record_2
+      description: "Create detailed medical record documenting diagnosis, prescription,\
+        \ and treatment plan.\n        \n        **Authorization & Permissions:**\n\
+        \        - **Only doctors** can create/update medical records\n        - Doctor\
+        \ must be assigned to the appointment\n        - Cannot create records for\
+        \ other doctors' appointments\n        \n        **Medical Record Purpose:**\n\
+        \        Documents complete consultation including:\n        - Patient's diagnosis\n\
+        \        - Prescribed medications\n        - Treatment recommendations\n \
+        \       - Vital signs measurements\n        - Doctor's clinical notes\n  \
+        \      - Follow-up scheduling\n        \n        **When to Create Medical\
+        \ Record:**\n        - After completing patient examination\n        - During\
+        \ consultation (real-time documentation)\n        - When appointment status\
+        \ is `confirmed` or `completed`\n        - Cannot create for `booked`, `cancelled`,\
+        \ or `no_show` appointments\n        \n        **Status Requirements:**\n\
+        \        - `confirmed`: Appointment happening now, can document\n        -\
+        \ `completed`: Consultation finished, finalizing record\n        - Other statuses:\
+        \ 400 error (record requires actual visit)\n        \n        **Create vs\
+        \ Update Behavior:**\n        - **POST**: Creates new record if none exists,\
+        \ updates if exists (idempotent)\n        - **PUT**: Same as POST (both methods\
+        \ supported)\n        - One medical record per appointment (enforced by database)\n\
+        \        - Existing records: Updates all fields, partial update allowed\n\
+        \        \n        **Required Fields:**\n        - `diagnosis`: Medical diagnosis\
+        \ (e.g., \"Acute bronchitis\", \"Type 2 Diabetes\")\n        - `prescription`:\
+        \ Medication details with dosage and duration\n          - Format: \"Drug\
+        \ name dose, frequency, duration\"\n          - Example: \"Amoxicillin 500mg,\
+        \ 3 times daily for 7 days\"\n        - `treatment_plan`: Recommended actions\
+        \ and lifestyle advice\n          - Example: \"Rest for 3 days, avoid cold\
+        \ drinks, increase fluid intake\"\n        \n        **Optional Fields:**\n\
+        \        - `notes`: Additional clinical observations\n          - Doctor's\
+        \ private notes\n          - Patient behavior/compliance notes\n         \
+        \ - Risk factors or concerns\n        \n        - `follow_up_date`: Date for\
+        \ next visit (YYYY-MM-DD)\n          - Used for chronic conditions\n     \
+        \     - Post-surgery checkups\n          - Monitoring treatment progress\n\
+        \        \n        - `vital_signs`: JSON object with measurements\n      \
+        \    - blood_pressure: \"120/80\" (mmHg)\n          - temperature: \"37.2\"\
+        \ (°C)\n          - heart_rate: \"72\" (bpm)\n          - respiratory_rate:\
+        \ \"18\" (breaths/min)\n          - oxygen_saturation: \"98\" (%)\n      \
+        \    - weight: \"70\" (kg)\n          - height: \"175\" (cm)\n        \n \
+        \       **Vital Signs Format:**\n        ```json\n        {\n          \"\
+        blood_pressure\": \"120/80\",\n          \"temperature\": \"37.2\",\n    \
+        \      \"heart_rate\": \"72\",\n          \"respiratory_rate\": \"18\",\n\
+        \          \"oxygen_saturation\": \"98\",\n          \"weight\": \"70.5\"\
+        ,\n          \"height\": \"175\"\n        }\n        ```\n        \n     \
+        \   **Medical Record Creation Process:**\n        1. Doctor completes patient\
+        \ examination\n        2. Doctor documents findings in system\n        3.\
+        \ POST to /appointments/{id}/medical-record/\n        4. System validates\
+        \ doctor ownership and status\n        5. Creates MedicalRecord linked to\
+        \ appointment\n        6. Stores created_by (doctor's user ID)\n        7.\
+        \ Timestamps: created_at and updated_at\n        8. Returns complete medical\
+        \ record data\n        \n        **Updating Existing Record:**\n        1.\
+        \ Medical record already exists for appointment\n        2. Doctor submits\
+        \ updated data (POST or PUT)\n        3. System updates existing record (no\
+        \ duplicate)\n        4. Updates updated_at timestamp\n        5. created_by\
+        \ remains unchanged\n        6. Returns updated medical record\n        \n\
+        \        **Response Data:**\n        - Success confirmation (created or updated)\n\
+        \        - Complete medical record including:\n          - id: Medical record\
+        \ ID\n          - appointment: Appointment ID\n          - diagnosis, prescription,\
+        \ treatment_plan\n          - notes, follow_up_date\n          - vital_signs\
+        \ (JSON object)\n          - created_by: Doctor's user ID\n          - created_by_name:\
+        \ Doctor's full name\n          - created_at, updated_at timestamps\n    \
+        \    \n        **Use Cases:**\n        - General consultation: Diagnosis +\
+        \ prescription\n        - Chronic disease management: Treatment plan + follow-up\n\
+        \        - Emergency visit: Vital signs + immediate treatment\n        - Routine\
+        \ checkup: Vital signs documentation\n        - Specialist consultation: Detailed\
+        \ diagnosis + referral notes\n        \n        **Integration with Appointment:**\n\
+        \        - Medical record links to appointment (one-to-one)\n        - Can\
+        \ access via appointment.medical_record\n        - Appointment status often\
+        \ changed to `completed` after record creation\n        - Medical record ID\
+        \ stored in appointment response\n        \n        **Privacy & Security:**\n\
+        \        - Only assigned doctor can create/view/update\n        - Patient\
+        \ can view their own medical records\n        - Admins can view all records\
+        \ (audit trail)\n        - Contains sensitive health information (HIPAA/GDPR\
+        \ compliance)\n        \n        **Best Practices:**\n        - Create record\
+        \ immediately after consultation\n        - Include comprehensive vital signs\
+        \ when available\n        - Be specific in diagnosis (use medical terminology)\n\
+        \        - Prescription: Include dosage, frequency, duration\n        - Treatment\
+        \ plan: Actionable, clear instructions\n        - Follow-up date: Set for\
+        \ chronic conditions or monitoring\n        - Notes: Document anything unusual\
+        \ or important\n        \n        **Error Scenarios:**\n        - 400: Invalid\
+        \ status, validation errors (vital_signs format)\n        - 403: Not a doctor,\
+        \ not your appointment\n        - 404: Appointment doesn't exist\n       \
+        \ \n        **Validation Rules:**\n        - vital_signs must be valid JSON\
+        \ object (if provided)\n        - follow_up_date must be future date\n   \
+        \     - diagnosis, prescription, treatment_plan cannot be empty\n        \n\
+        \        **Common Prescription Format:**\n        ```\n        1. Paracetamol\
+        \ 500mg - 2 tablets every 6 hours for 3 days\n        2. Amoxicillin 500mg\
+        \ - 1 capsule 3 times daily for 7 days\n        3. Cetirizine 10mg - 1 tablet\
+        \ before bed for 5 days\n        ```\n        \n        **Status Code Logic:**\n\
+        \        - 201 Created: New medical record created\n        - 200 OK: Existing\
+        \ medical record updated\n        \n        **Note:**\n        After creating\
+        \ medical record, consider changing appointment status to `completed` using\
+        \ a separate endpoint (future feature).\n        "
+      summary: Create or update medical record after consultation
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreateUpdateRequest'
+            examples:
+              CreateMedicalRecordExample:
+                value:
+                  diagnosis: Common cold
+                  prescription: Paracetamol 500mg, 2 tablets every 6 hours for 3 days
+                  treatment_plan: Rest and drink plenty of fluids. Avoid cold drinks.
+                  notes: Patient should return if symptoms persist after 3 days
+                  follow_up_date: '2024-01-20'
+                  vital_signs:
+                    blood_pressure: 120/80
+                    temperature: '37.2'
+                    heart_rate: '72'
+                    respiratory_rate: '18'
+                summary: Create Medical Record Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordCreateUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Medical record created/updated successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Medical record created successfully
+                      medical_record:
+                        id: 1
+                        appointment: 1
+                        diagnosis: Common cold
+                        prescription: Paracetamol 500mg, 2 tablets every 6 hours
+                        treatment_plan: Rest and drink plenty of fluids
+                        notes: Patient should return if symptoms persist
+                        follow_up_date: '2024-01-20'
+                        vital_signs:
+                          blood_pressure: 120/80
+                          temperature: '37.2'
+                          heart_rate: '72'
+                        created_by: 2
+                        created_by_name: Dr. Jane Smith
+                        created_at: '2024-01-15T10:30:00Z'
+                        updated_at: '2024-01-15T10:30:00Z'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                description: Medical record created successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Medical record created successfully
+                      medical_record:
+                        id: 1
+                        appointment: 1
+                        diagnosis: Common cold
+                        prescription: Paracetamol 500mg, 2 tablets every 6 hours
+                        treatment_plan: Rest and drink plenty of fluids
+                        notes: Patient should return if symptoms persist
+                        follow_up_date: '2024-01-20'
+                        vital_signs:
+                          blood_pressure: 120/80
+                          temperature: '37.2'
+                          heart_rate: '72'
+                        created_by: 2
+                        created_by_name: Dr. Jane Smith
+                        created_at: '2024-01-15T10:30:00Z'
+                        updated_at: '2024-01-15T10:30:00Z'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request or business rule violation
+                content:
+                  application/json:
+                    examples:
+                      invalid_status:
+                        value:
+                          success: false
+                          error: 'Cannot create medical record for appointment with
+                            status: booked'
+                      validation_error:
+                        value:
+                          vital_signs:
+                          - Vital signs must be a JSON object
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Permission denied
+                content:
+                  application/json:
+                    examples:
+                      not_doctor:
+                        value:
+                          success: false
+                          error: Only doctors can create medical records
+                      not_owner:
+                        value:
+                          success: false
+                          error: You can only create medical records for your own
+                            appointments
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Appointment not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+  /api/v1/appointments/{id}/reschedule/:
+    put:
+      operationId: appointments_reschedule
+      description: "Change appointment date/time while preserving all other details.\n\
+        \        \n        **Authorization & Permissions:**\n        - **Patients**:\
+        \ Can reschedule only their own appointments\n        - **Doctors**: Can reschedule\
+        \ appointments assigned to them\n        - **Admins**: Can reschedule any\
+        \ appointment\n        - 403 error if trying to reschedule someone else's\
+        \ appointment\n        \n        **Rescheduling Rules:**\n        \n     \
+        \   1. **Status Restrictions:**\n           - Can only reschedule appointments\
+        \ with status: `booked` or `confirmed`\n           - Cannot reschedule if:\
+        \ `cancelled`, `completed`, `no_show`\n           - Reason: Closed appointments\
+        \ shouldn't be modified\n        \n        2. **Slot Availability:**\n   \
+        \        - New time slot must be available\n           - Checks doctor's schedule\
+        \ for conflicts\n           - Only considers `booked` and `confirmed` appointments\n\
+        \           - Returns 400 error with conflict message\n        \n        3.\
+        \ **Date/Time Validation:**\n           - Same rules as booking: Cannot reschedule\
+        \ to past dates\n           - Cannot reschedule more than 30 days in advance\n\
+        \           - Must be within operating hours (08:00-16:30)\n        \n   \
+        \     4. **Doctor Assignment:**\n           - Cannot change doctor during\
+        \ reschedule\n           - Use cancel + new booking to change doctor\n   \
+        \        - Department remains the same\n        \n        **Required Fields:**\n\
+        \        - `new_date`: Target date (YYYY-MM-DD format)\n        - `new_time`:\
+        \ Target time (HH:MM:SS format, e.g., \"14:00:00\")\n        \n        **Optional\
+        \ Fields:**\n        - `reason`: Explanation for rescheduling (recommended)\n\
+        \          - Helps track patient behavior\n          - Examples: \"Work conflict\"\
+        , \"Doctor's request\", \"Personal emergency\"\n          - Appended to appointment\
+        \ notes\n        \n        **Reschedule Process:**\n        1. User provides\
+        \ new date, time, and optional reason\n        2. System validates appointment\
+        \ status and permissions\n        3. Check if new slot is available with same\
+        \ doctor\n        4. Store original date/time in `rescheduled_from` field\n\
+        \        5. Update appointment_date and appointment_time\n        6. Append\
+        \ reschedule reason to notes\n        7. Reset status to `booked` (needs reconfirmation)\n\
+        \        8. Old time slot becomes available for others\n        \n       \
+        \ **Response Data:**\n        - Success confirmation message\n        - Updated\
+        \ appointment with new date/time\n        - `rescheduled_from` object: Original\
+        \ date/time for history\n        - All other appointment details remain unchanged\n\
+        \        \n        **Rescheduled History:**\n        The `rescheduled_from`\
+        \ field stores:\n        ```json\n        {\n          \"date\": \"2024-01-15\"\
+        ,\n          \"time\": \"09:00\"\n        }\n        ```\n        Useful for\
+        \ tracking multiple reschedules and patient reliability.\n        \n     \
+        \   **Status Workflow After Reschedule:**\n        - Status reset to `booked`\n\
+        \        - Requires staff confirmation again\n        - Patient receives new\
+        \ confirmation (future feature)\n        - Doctor notified of schedule change\
+        \ (future feature)\n        \n        **Use Cases:**\n        - Patient time\
+        \ conflict: Need different slot same doctor\n        - Doctor cancellation:\
+        \ Clinic offers alternative time\n        - Emergency rescheduling: Patient\
+        \ can't make original time\n        - Administrative adjustment: Fix scheduling\
+        \ errors\n        \n        **Difference from Cancel + Rebook:**\n       \
+        \ - Reschedule: Preserves appointment ID, history, and notes\n        - Cancel\
+        \ + Rebook: Creates new appointment, loses history\n        - Reschedule:\
+        \ Better for tracking patient patterns\n        - Use reschedule when keeping\
+        \ appointment ID matters\n        \n        **Error Scenarios:**\n       \
+        \ - 400: Invalid status, slot taken, invalid date/time\n        - 403: Not\
+        \ your appointment\n        - 404: Appointment doesn't exist\n        \n \
+        \       **Best Practices:**\n        - Check available slots before showing\
+        \ reschedule form\n        - Display rescheduling policy to users\n      \
+        \  - Offer alternative slots on conflict error\n        - Log reschedule history\
+        \ for analytics\n        \n        **Note:**\n        If you need to change\
+        \ the doctor, cancel the current appointment and create a new booking.\n \
+        \       "
+      summary: Reschedule appointment to new date and time
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRescheduleRequest'
+            examples:
+              RescheduleAppointmentExample:
+                value:
+                  new_date: '2024-01-20'
+                  new_time: '10:00:00'
+                  reason: Need to change time
+                summary: Reschedule Appointment Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentRescheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentRescheduleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Appointment rescheduled successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Appointment rescheduled successfully
+                      appointment:
+                        id: 1
+                        appointment_date: '2024-01-20'
+                        appointment_time: '10:00:00'
+                        status: booked
+                        rescheduled_from:
+                          date: '2024-01-15'
+                          time: 09:00:00
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request or business rule violation
+                content:
+                  application/json:
+                    examples:
+                      invalid_status:
+                        value:
+                          success: false
+                          error: 'Cannot reschedule appointment with status: cancelled'
+                      slot_taken:
+                        value:
+                          success: false
+                          error: New time slot is already taken. Please choose another
+                            time.
+                          suggestions: []
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                description: Permission denied
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      error: You can only reschedule your own appointments
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Appointment not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+  /api/v1/appointments/available-slots/:
+    get:
+      operationId: appointments_available_slots
+      description: "Get all time slots for a doctor on specific date with availability\
+        \ status.\n        \n        **Time Slot System:**\n        - Operating hours:\
+        \ 08:00 - 16:30\n        - Slot duration: 30 minutes\n        - Total slots\
+        \ per day: 18 slots\n        - Format: HH:MM (e.g., \"08:00\", \"08:30\")\n\
+        \        \n        **Availability Logic:**\n        - available=True: Slot\
+        \ is free, can book\n        - available=False: Slot already booked by another\
+        \ patient\n        - Returns ALL slots regardless of availability\n      \
+        \  \n        **Booking Rules:**\n        - Cannot book past dates\n      \
+        \  - Cannot book more than 30 days in advance\n        - Cannot book already\
+        \ taken slots\n        - One patient per slot per doctor\n        \n     \
+        \   **Room Assignment:**\n        - Shows default room for available slots\n\
+        \        - Room is auto-assigned when booking\n        - Priority: Doctor's\
+        \ dedicated room > Department room\n        \n        **Use Cases:**\n   \
+        \     - Patient booking: Display available times for doctor selection\n  \
+        \      - Calendar view: Show doctor's schedule\n        - Conflict prevention:\
+        \ Real-time slot availability check\n        \n        **Required Parameters:**\n\
+        \        - `doctor_id`: Doctor's user ID\n        - `date`: Appointment date\
+        \ (YYYY-MM-DD)\n        \n        **Optional Parameters:**\n        - `department_id`:\
+        \ Filter by department (for validation)\n        "
+      summary: Check doctor's available time slots
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Appointment date in YYYY-MM-DD format
+        required: true
+      - in: query
+        name: department_id
+        schema:
+          type: integer
+        description: Department ID (optional)
+      - in: query
+        name: doctor_id
+        schema:
+          type: integer
+        description: Doctor ID
+        required: true
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Available slots retrieved successfully
+                content:
+                  application/json:
+                    example:
+                      date: '2024-01-15'
+                      doctor:
+                        id: 1
+                        full_name: Dr. John Doe
+                        specialization: Cardiology
+                      department:
+                        id: 1
+                        name: Cardiology
+                        icon: heart
+                      available_slots:
+                      - time: 08:00
+                        available: true
+                        room: '101'
+                      - time: 08:30
+                        available: false
+                        room: null
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request parameters
+                content:
+                  application/json:
+                    examples:
+                      missing_params:
+                        value:
+                          success: false
+                          error: doctor_id and date are required parameters
+                      invalid_date:
+                        value:
+                          success: false
+                          error: Invalid date format. Use YYYY-MM-DD
+                      past_date:
+                        value:
+                          success: false
+                          error: Cannot book appointments in the past
+                      too_far_ahead:
+                        value:
+                          success: false
+                          error: Cannot book appointments more than 30 days in advance
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Doctor or department not found
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      error: Doctor not found or inactive
+          description: ''
+  /api/v1/appointments/doctors-by-department/:
+    get:
+      operationId: appointments_doctors_by_department
+      description: "Retrieve list of active doctors who belong to a specific department.\n\
+        \        \n        **Purpose:**\n        Used for dynamic form population\
+        \ when patient selects a department during appointment booking.\n        \n\
+        \        **Process Flow:**\n        1. Patient selects department from dropdown\n\
+        \        2. Frontend calls this endpoint with department_id\n        3. Backend\
+        \ returns all doctors in that department\n        4. Frontend populates doctor\
+        \ dropdown with results\n        5. Patient selects doctor to proceed with\
+        \ booking\n        \n        **Department-Doctor Relationship:**\n       \
+        \ - Each doctor belongs to one primary department\n        - Departments group\
+        \ doctors by medical specialty\n        - Examples: Cardiology, Pediatrics,\
+        \ Orthopedics, etc.\n        - Only active doctors and departments are returned\n\
+        \        \n        **Filtering Logic:**\n        - Filters by `department_id`\
+        \ (required parameter)\n        - Only includes active doctors (`is_active=True`)\n\
+        \        - Only includes active departments (`is_active=True`)\n        -\
+        \ Results sorted by rating (highest first), then alphabetically\n        \n\
+        \        **Required Query Parameter:**\n        - `department_id`: Integer\
+        \ ID of the department\n        \n        **Validation:**\n        - department_id\
+        \ must be provided (400 error if missing)\n        - department_id must be\
+        \ valid integer (400 error if invalid)\n        - Department must exist and\
+        \ be active (404 error if not found)\n        \n        **Response Data:**\n\
+        \        - **Department info**: id, name, icon\n        - **Doctors array**:\
+        \ Each doctor includes:\n          - id: Doctor's user ID (for booking)\n\
+        \          - full_name: Dr. [Name]\n          - specialization: Medical specialty\n\
+        \          - rating: Average patient rating (0-5)\n          - total_reviews:\
+        \ Number of reviews\n          - avatar_url: Profile picture URL\n       \
+        \   - title: Professional title (e.g., \"Professor\", \"Associate Professor\"\
+        )\n          - bio: Short biography\n          - room: Assigned room information\n\
+        \        - **Count**: Total number of doctors in department\n        \n  \
+        \      **Use Cases:**\n        - Appointment booking form: Populate doctor\
+        \ dropdown\n        - Department page: Show all doctors in department\n  \
+        \      - Doctor search: Filter by medical specialty\n        - Patient choice:\
+        \ Compare doctors by rating\n        \n        **Best Practices:**\n     \
+        \   - Call this endpoint when department selection changes\n        - Cache\
+        \ results to reduce API calls\n        - Display doctor rating to help patient\
+        \ choose\n        - Show specialization for clarity\n        \n        **Example\
+        \ Workflow:**\n        ```\n        1. User selects \"Cardiology\" (department_id=1)\n\
+        \        2. GET /api/v1/appointments/doctors-by-department/?department_id=1\n\
+        \        3. Receives list of cardiologists\n        4. User selects \"Dr.\
+        \ John Smith\" (id=5)\n        5. Proceeds to date/time selection\n      \
+        \  ```\n        "
+      summary: Get available doctors filtered by department
+      parameters:
+      - in: query
+        name: department_id
+        schema:
+          type: integer
+        description: Department ID
+        required: true
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Doctors retrieved successfully
+                content:
+                  application/json:
+                    example:
+                      department:
+                        id: 1
+                        name: Cardiology
+                        icon: heart
+                      doctors:
+                      - id: 1
+                        full_name: Dr. John Doe
+                        specialization: Cardiology
+                        rating: 4.5
+                      count: 1
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Invalid request
+                content:
+                  application/json:
+                    example:
+                      error: department_id parameter is required
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Department not found
+                content:
+                  application/json:
+                    example:
+                      error: Department with ID 999 not found or inactive.
+          description: ''
+  /api/v1/appointments/my-appointments/:
+    get:
+      operationId: appointments_my_appointments
+      description: "Retrieve appointments for the authenticated user with optional\
+        \ status and date range filtering.\n        \n        **Access Control:**\n\
+        \        - Available to all authenticated users (patients, doctors, admins)\n\
+        \        - Automatically filters based on user role (same as list endpoint)\n\
+        \        - Patients see their bookings, doctors see their schedule\n     \
+        \   \n        **Query Parameters (all optional):**\n        \n        1. **status**\
+        \ (string): Filter by appointment status\n           - Values: `booked`, `confirmed`,\
+        \ `completed`, `cancelled`, `no_show`\n           - Example: `?status=confirmed`\n\
+        \           - Use case: Show only upcoming confirmed appointments\n      \
+        \  \n        2. **date_from** (date): Start of date range\n           - Format:\
+        \ YYYY-MM-DD\n           - Example: `?date_from=2024-01-01`\n           -\
+        \ Includes appointments on or after this date\n        \n        3. **date_to**\
+        \ (date): End of date range\n           - Format: YYYY-MM-DD\n           -\
+        \ Example: `?date_to=2024-12-31`\n           - Includes appointments on or\
+        \ before this date\n        \n        4. **page** (integer): Pagination page\
+        \ number\n           - Default: 1\n           - Use with page_size for pagination\n\
+        \        \n        **Filtering Combinations:**\n        - Upcoming appointments:\
+        \ `?date_from=2024-01-15&status=confirmed`\n        - Past appointments: `?date_to=2024-01-15&status=completed`\n\
+        \        - This month: `?date_from=2024-01-01&date_to=2024-01-31`\n      \
+        \  - Cancelled history: `?status=cancelled`\n        \n        **Sorting:**\n\
+        \        - Results sorted by appointment_date (descending)\n        - Then\
+        \ by appointment_time (descending)\n        - Most recent appointments appear\
+        \ first\n        \n        **Response Structure:**\n        Same as appointments\
+        \ list endpoint - complete appointment details with nested patient/doctor/department\
+        \ information.\n        \n        **Use Cases:**\n        - Patient dashboard:\
+        \ \"My Appointments\" page\n        - Doctor schedule: \"My Schedule\" filtered\
+        \ by date\n        - Appointment history: Filter by status=completed\n   \
+        \     - Upcoming visits: Filter by date_from=today, status!=cancelled\n  \
+        \      - Cancellation tracking: Filter by status=cancelled\n        \n   \
+        \     **Best Practices:**\n        - Combine status and date filters for specific\
+        \ views\n        - Use date_from for \"upcoming appointments\" feature\n \
+        \       - Use status=completed for medical history\n        - Cache frequently\
+        \ accessed date ranges\n        \n        **Difference from /appointments/:**\n\
+        \        - This endpoint: Role-based filtering built-in\n        - Main list\
+        \ endpoint: Same filtering but more explicit in docs\n        - Both return\
+        \ identical data structure\n        - Use this for \"My [Appointments/Schedule]\"\
+        \ features\n        "
+      summary: Get current user's appointments with advanced filtering
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: Filter appointments from this date (YYYY-MM-DD)
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Filter appointments until this date (YYYY-MM-DD)
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Filter by appointment status (booked, confirmed, completed, cancelled,
+          no_show)
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentList'
+          description: ''
+  /api/v1/auth/forgot-password/:
+    post:
+      operationId: auth_forgot_password
+      description: "Initiate password reset process by sending reset link to user's\
+        \ email.\n        \n        **Process:**\n        1. Validates email address\
+        \ format\n        2. Checks if email exists in system (security: always returns\
+        \ success message)\n        3. Generates unique reset token (valid for 24\
+        \ hours)\n        4. Creates password reset URL with token\n        5. Sends\
+        \ email with reset instructions\n        \n        **Email Content:**\n  \
+        \      - Reset link with embedded uid and token\n        - Expiration notice\
+        \ (24 hours)\n        - Security warning if not requested\n        - Link\
+        \ format: {FRONTEND_URL}/reset-password/{uid}/{token}\n        \n        **Security\
+        \ Features:**\n        - Generic success message (doesn't reveal if email\
+        \ exists)\n        - Token expires after 24 hours\n        - One-time use\
+        \ token (cannot reuse after password change)\n        - Validates email exists\
+        \ before sending\n        \n        **Error Handling:**\n        - Invalid\
+        \ email format → 400 with validation error\n        - Email not found → 200\
+        \ with generic message (security)\n        - Email send failure → 500 with\
+        \ error message\n        \n        **Configuration:**\n        - EMAIL_BACKEND:\
+        \ Console (dev) or SMTP (production)\n        - FRONTEND_URL: Where reset\
+        \ form is hosted\n        - FROM_EMAIL: Sender email address\n        "
+      summary: Request password reset email
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+            examples:
+              ForgotPasswordRequest:
+                value:
+                  email: patient@example.com
+                summary: Forgot Password Request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Password reset email sent
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: If an account exists with this email, a password reset
+                        link has been sent.
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation error
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      message: Failed to send password reset email
+                      errors:
+                        email:
+                        - This field is required.
+          description: ''
+  /api/v1/auth/login/:
+    post:
+      operationId: auth_login
+      description: "Authenticate user and generate JWT tokens.\n        \n       \
+        \ **Process:**\n        1. Validates email and password\n        2. Authenticates\
+        \ user credentials\n        3. Creates Django session\n        4. Generates\
+        \ JWT access and refresh tokens\n        5. Returns user profile and tokens\n\
+        \        \n        **Authentication:**\n        - Uses email as username\n\
+        \        - Password is automatically hashed and verified\n        - Account\
+        \ must be active (is_active=True)\n        \n        **Response Tokens:**\n\
+        \        - access: Short-lived token for API requests (~15 minutes)\n    \
+        \    - refresh: Long-lived token for refreshing access (~7 days)\n       \
+        \ \n        **Security Notes:**\n        - Account is locked if is_active=False\n\
+        \        - Failed attempts are logged\n        - Session is created for Django\
+        \ admin compatibility\n        "
+      summary: User login
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              LoginExample:
+                value:
+                  email: patient@example.com
+                  password: password123
+                summary: Login Example
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Login successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Login successfully
+                      user:
+                        id: 1
+                        email: test@example.com
+                        full_name: John Doe
+                      tokens:
+                        refresh: refresh_token
+                        access: access_token
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Invalid email or password
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      message: Invalid email or password
+          description: ''
+  /api/v1/auth/logout/:
+    post:
+      operationId: auth_logout
+      description: "Logout user from current device and blacklist the refresh token.\n\
+        \        \n        **Process:**\n        1. Receives refresh token from request\
+        \ body\n        2. Validates token format and expiration\n        3. Adds\
+        \ token to blacklist (prevents reuse)\n        4. Destroys Django session\n\
+        \        5. Returns success with optional redirect URL\n        \n       \
+        \ **Token Blacklisting:**\n        - Once blacklisted, the token cannot be\
+        \ used again\n        - Access token remains valid until expiration (~15 minutes)\n\
+        \        - User needs to login again to get new tokens\n        \n       \
+        \ **Redirect URL:**\n        - Optional field to specify where to redirect\
+        \ after logout\n        - Default: /api/v1/auth/login\n        - Useful for\
+        \ frontend routing\n        \n        **Note:** This only logs out the current\
+        \ device. To logout all devices, use `/api/v1/auth/logout-all/`\n        "
+      summary: Logout from current device
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          type:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+          properties:
+            schema:
+              refresh:
+                type: string
+                description: Refresh token to blacklist (required)
+              redirect_url:
+                type: string
+                description: URL to redirect after logout (optional)
+                default: /api/v1/auth/login
+          required:
+            schema:
+              type: object
+              additionalProperties: {}
+              description: Unspecified request body
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Logout successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Logout successfully
+                      redirect_url: /api/v1/auth/login
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Bad request - missing refresh token or invalid token
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      message: Refresh token is required
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Unauthorized - authentication required
+          description: ''
+  /api/v1/auth/logout-all/:
+    post:
+      operationId: auth_logout_all
+      description: "Logout user from all devices by blacklisting all refresh tokens.\n\
+        \        \n        **Process:**\n        1. Finds all outstanding (non-blacklisted)\
+        \ refresh tokens for the user\n        2. Adds all tokens to blacklist\n \
+        \       3. Destroys current session\n        4. Forces re-authentication on\
+        \ all devices\n        \n        **Use Cases:**\n        - Security: When\
+        \ user suspects account compromise\n        - Password Change: Force re-login\
+        \ after password reset\n        - Lost Device: Revoke access from all devices\n\
+        \        - Account Takeover Prevention: Immediate token invalidation\n   \
+        \     \n        **Important Notes:**\n        - ALL existing tokens become\
+        \ invalid immediately\n        - User must login again on every device\n \
+        \       - This action cannot be undone\n        - Requires current authentication\
+        \ (must be logged in)\n        \n        **Response Status:** 205 Reset Content\
+        \ (successful logout requiring client action)\n        "
+      summary: Logout from all devices
+      tags:
+      - Authentication
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '205':
+          content:
+            application/json:
+              schema:
+                description: Logged out from all devices successfully
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Logged out from all devices successfully
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                description: Unauthorized - authentication required
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                description: Internal server error
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      message: Error message
+          description: ''
+  /api/v1/auth/register/:
+    post:
+      operationId: auth_register_create
+      description: |-
+        API to register a new patient
+        POST /api/v1/auth/register/
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/v1/auth/reset-password/:
+    post:
+      operationId: auth_reset_password
+      description: "Complete password reset process using valid reset token.\n   \
+        \     \n        **Process:**\n        1. Validates uid and token (same as\
+        \ verify endpoint)\n        2. Validates new password and confirmation match\n\
+        \        3. Validates password strength (minimum 6 characters)\n        4.\
+        \ Updates user password with secure hash\n        5. Invalidates reset token\
+        \ (one-time use)\n        6. Sends confirmation email\n        \n        **Password\
+        \ Requirements:**\n        - Minimum 6 characters\n        - Must match confirmation\
+        \ password\n        - Automatically hashed with Django's secure hasher\n \
+        \       \n        **Security Features:**\n        - Token becomes invalid\
+        \ after use\n        - Old password no longer works\n        - All existing\
+        \ sessions terminated (optional)\n        - Confirmation email sent\n    \
+        \    \n        **Post-Reset Actions:**\n        1. Password is immediately\
+        \ changed\n        2. Reset token is invalidated\n        3. Confirmation\
+        \ email sent to user\n        4. User can login with new password\n      \
+        \  \n        **Error Scenarios:**\n        - Passwords don't match → 400\n\
+        \        - Token expired/invalid → 400\n        - User not found → 400\n \
+        \       - Password too short → 400\n        \n        **Success Response:**\n\
+        \        - Clear message indicating successful reset\n        - User should\
+        \ be redirected to login page\n        "
+      summary: Reset password with valid token
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+            examples:
+              ResetPasswordRequest:
+                value:
+                  uid: MQ
+                  token: c6v8xq-1234567890abcdef1234567890ab
+                  new_password: newpassword123
+                  confirm_password: newpassword123
+                summary: Reset Password Request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Password reset successful
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Password has been reset successfully. You can now login
+                        with your new password.
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Validation error
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      message: Failed to reset password
+                      errors:
+                        confirm_password:
+                        - Passwords do not match
+          description: ''
+  /api/v1/auth/verify-reset-token/:
+    post:
+      operationId: auth_verify_reset_token
+      description: "Check if password reset token is valid before showing reset form.\n\
+        \        \n        **Purpose:**\n        - Frontend validation before displaying\
+        \ password reset form\n        - Prevents user frustration from expired/invalid\
+        \ tokens\n        - Provides clear error messages for troubleshooting\n  \
+        \      \n        **Validation Checks:**\n        1. uid format and decoding\n\
+        \        2. User existence in database\n        3. Token authenticity (not\
+        \ tampered)\n        4. Token expiration (within 24 hours)\n        5. Token\
+        \ usage status (not already used)\n        \n        **Request Parameters:**\n\
+        \        - uid: Base64 encoded user ID\n        - token: Django password reset\
+        \ token\n        \n        **Response:**\n        - valid: true → Token is\
+        \ good, show reset form\n        - valid: false → Token is bad, show error/resend\
+        \ option\n        \n        **Common Error Scenarios:**\n        - Token expired\
+        \ (>24 hours old)\n        - Token already used (password already reset)\n\
+        \        - Invalid uid (user not found)\n        - Malformed token (tampered/corrupted)\n\
+        \        \n        **Use Case Flow:**\n        1. User clicks email link with\
+        \ uid/token\n        2. Frontend calls this endpoint to verify\n        3.\
+        \ If valid → Show password reset form\n        4. If invalid → Show error\
+        \ and resend option\n        "
+      summary: Verify password reset token validity
+      tags:
+      - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyResetTokenRequest'
+            examples:
+              VerifyTokenRequest:
+                value:
+                  uid: MQ
+                  token: c6v8xq-1234567890abcdef1234567890ab
+                summary: Verify Token Request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/VerifyResetTokenRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VerifyResetTokenRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                description: Token is valid
+                content:
+                  application/json:
+                    example:
+                      success: true
+                      message: Token is valid
+                      valid: true
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                description: Token is invalid or expired
+                content:
+                  application/json:
+                    example:
+                      success: false
+                      message: Invalid or expired token
+                      valid: false
+                      errors:
+                        token:
+                        - Invalid or expired token
+          description: ''
+  /api/v1/departments/:
+    get:
+      operationId: departments_list
+      description: "Get paginated list of all hospital departments with basic information.\n\
+        \        \n        **Department Structure:**\n        Departments organize\
+        \ medical specialties and group doctors by expertise:\n        - Cardiology:\
+        \ Heart and cardiovascular system\n        - Pediatrics: Children's healthcare\n\
+        \        - Orthopedics: Bones, joints, muscles\n        - Dermatology: Skin\
+        \ conditions\n        - Neurology: Nervous system\n        - Internal Medicine:\
+        \ General adult healthcare\n        \n        **Returned Data Per Department:**\n\
+        \        - `id`: Unique department identifier\n        - `name`: Department\
+        \ name (e.g., \"Cardiology\")\n        - `description`: Overview of services\
+        \ provided\n        - `icon`: Icon name for UI display (e.g., \"heart\", \"\
+        baby\", \"bone\")\n        - `health_examination_fee`: Base consultation fee\
+        \ (VND)\n        - `is_active`: Whether department is currently operational\n\
+        \        \n        **Filtering:**\n        - Only active departments (`is_active=True`)\
+        \ are returned\n        - Inactive departments are hidden from public view\n\
+        \        \n        **Pagination:**\n        - Default page size: 10 departments\n\
+        \        - Maximum page size: 100 departments\n        - Query parameters:\
+        \ `page`, `page_size`\n        - Response includes: count, next, previous,\
+        \ results\n        \n        **Sorting:**\n        - Departments ordered by\
+        \ name (alphabetically)\n        - Consistent ordering across requests\n \
+        \       \n        **Health Examination Fee:**\n        - Base consultation\
+        \ fee charged by department\n        - Does NOT include additional services\
+        \ (X-Ray, tests, etc.)\n        - Services add to total fee after consultation\n\
+        \        \n        **Use Cases:**\n        - Appointment booking: Show department\
+        \ selection dropdown\n        - Homepage: Display available medical specialties\n\
+        \        - Search/Filter: Help patients find right department\n        - Department\
+        \ directory: Public information page\n        \n        **Example Response:**\n\
+        \        ```json\n        {\n          \"count\": 8,\n          \"next\":\
+        \ null,\n          \"previous\": null,\n          \"results\": [\n       \
+        \     {\n              \"id\": 1,\n              \"name\": \"Cardiology\"\
+        ,\n              \"description\": \"Heart and cardiovascular care\",\n   \
+        \           \"icon\": \"heart\",\n              \"health_examination_fee\"\
+        : \"500000.00\",\n              \"is_active\": true\n            },\n    \
+        \        ...\n          ]\n        }\n        ```\n        \n        **Best\
+        \ Practices:**\n        - Cache department list (changes infrequently)\n \
+        \       - Display icon for better UX\n        - Show health_examination_fee\
+        \ upfront (transparency)\n        - Use for dynamic department selection in\
+        \ forms\n        \n        **Note:**\n        For detailed department info\
+        \ including doctors and services, use the retrieve endpoint.\n        "
+      summary: List all active medical departments
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: Page number
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Number of results per page (max 100)
+      tags:
+      - Departments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDepartmentList'
+          description: ''
+  /api/v1/departments/{id}/:
+    get:
+      operationId: departments_retrieve
+      description: "Retrieve complete information about a department including all\
+        \ associated doctors and services.\n        \n        **Detailed Department\
+        \ Information:**\n        Uses DepartmentDetailSerializer which includes:\n\
+        \        \n        **Basic Info:**\n        - id, name, description\n    \
+        \    - icon (for UI display)\n        - health_examination_fee (base consultation\
+        \ cost)\n        - is_active status\n        \n        **Associated Doctors:**\n\
+        \        Complete list of doctors working in this department:\n        - Doctor's\
+        \ full name and specialization\n        - Professional title (Professor, Associate\
+        \ Professor, etc.)\n        - Rating and total reviews\n        - Avatar URL\n\
+        \        - Bio/background\n        - Assigned room\n        - Years of experience\
+        \ (if available)\n        \n        **Available Services:**\n        All medical\
+        \ services offered by this department:\n        - Service name and description\n\
+        \        - Service price (additional to examination fee)\n        - Service\
+        \ icon\n        - Availability status\n        - Service category\n      \
+        \  \n        **Use Cases:**\n        \n        1. **Department Detail Page:**\n\
+        \           - Show complete department profile\n           - List all doctors\
+        \ in department\n           - Display available services and prices\n    \
+        \       \n        2. **Doctor Selection:**\n           - Patient views cardiology\
+        \ department\n           - Sees all cardiologists with ratings\n         \
+        \  - Chooses preferred doctor for booking\n           \n        3. **Service\
+        \ Discovery:**\n           - Patient exploring orthopedics\n           - Views\
+        \ available services (X-Ray, MRI, Physical Therapy)\n           - Understands\
+        \ total potential costs\n           \n        4. **Price Transparency:**\n\
+        \           - Base examination fee from department\n           - Individual\
+        \ service prices listed\n           - Patient can estimate total cost\n  \
+        \      \n        **Data Relationships:**\n        - Department → Many Doctors\
+        \ (one department, multiple doctors)\n        - Department → Many Services\
+        \ (department offers multiple services)\n        - Department → Many Rooms\
+        \ (department has multiple rooms)\n        \n        **Doctor Information\
+        \ Included:**\n        Helps patients choose the right doctor:\n        -\
+        \ Rating: Average patient satisfaction (0-5 stars)\n        - Specialization:\
+        \ Specific medical expertise\n        - Experience: Professional background\n\
+        \        - Room: Where to find the doctor\n        \n        **Service Information\
+        \ Included:**\n        Helps patients understand offerings:\n        - Name:\
+        \ Service title (e.g., \"ECG\", \"Blood Test\")\n        - Price: Additional\
+        \ cost beyond examination fee\n        - Description: What the service involves\n\
+        \        \n        **Response Structure:**\n        ```json\n        {\n \
+        \         \"id\": 1,\n          \"name\": \"Cardiology\",\n          \"description\"\
+        : \"Comprehensive heart care\",\n          \"icon\": \"heart\",\n        \
+        \  \"health_examination_fee\": \"500000.00\",\n          \"is_active\": true,\n\
+        \          \"doctors\": [\n            {\n              \"id\": 5,\n     \
+        \         \"full_name\": \"Dr. John Smith\",\n              \"specialization\"\
+        : \"Interventional Cardiology\",\n              \"rating\": 4.8,\n       \
+        \       \"total_reviews\": 142,\n              \"avatar_url\": \"https://...\"\
+        ,\n              \"room\": { \"room_number\": \"201\", ... }\n           \
+        \ }\n          ],\n          \"services\": [\n            {\n            \
+        \  \"id\": 10,\n              \"name\": \"ECG (Electrocardiogram)\",\n   \
+        \           \"price\": \"150000.00\",\n              \"description\": \"Heart\
+        \ electrical activity test\"\n            }\n          ]\n        }\n    \
+        \    ```\n        \n        **Best Practices:**\n        - Use this endpoint\
+        \ for department detail pages\n        - Display doctors sorted by rating\n\
+        \        - Show total cost breakdown (examination + services)\n        - Cache\
+        \ response (department details change rarely)\n        \n        **Error Handling:**\n\
+        \        - 404: Department not found or inactive\n        - Returns error\
+        \ even if department exists but is_active=False\n        \n        **Difference\
+        \ from List Endpoint:**\n        - List: Basic info only, all departments\n\
+        \        - Retrieve: Complete info including doctors/services, one department\n\
+        \        - List: For dropdown/directory\n        - Retrieve: For detail page\n\
+        \        "
+      summary: Get comprehensive department details with doctors and services
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Department.
+        required: true
+      tags:
+      - Departments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Department not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+  /api/v1/doctors/:
+    get:
+      operationId: doctors_list
+      description: |-
+        GET /api/v1/doctors/
+        List all active doctors, filterable by department_id
+        Query params:
+            - ?department_id=1 (recommended) - Filter by department ID
+            - ?specialization=Nhi khoa (backward compatible) - Filter by specialization name
+
+        Example:
+            GET /api/v1/doctors/?department_id=1 - Get all doctors in department ID 1
+            GET /api/v1/doctors/ - Get all active doctors
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - doctors
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDoctorListList'
+          description: ''
+  /api/v1/services/:
+    get:
+      operationId: services_list
+      description: Override list to validate query parameters before filtering
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - services
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedServiceList'
+          description: ''
+  /api/v1/services/{id}/:
+    get:
+      operationId: services_retrieve
+      description: "Retrieve complete details of a single service by ID.\n       \
+        \ \n        **Service Information Includes:**\n        - `id`: Unique service\
+        \ identifier\n        - `name`: Service name (e.g., \"X-Ray Imaging\", \"\
+        Complete Blood Count\")\n        - `description`: Detailed explanation of\
+        \ the service\n        - `price`: Cost in VND (additional to examination fee)\n\
+        \        - `icon`: Icon name for UI display\n        - `is_active`: Whether\
+        \ service is currently offered\n        - `department`: Parent department\
+        \ information\n          - Department id, name, icon\n          - Helps understand\
+        \ service context\n        \n        **Use Cases:**\n        - Service detail\
+        \ page: Show complete service information\n        - Price inquiry: Display\
+        \ exact service cost\n        - Service comparison: Compare different services\n\
+        \        - Patient education: Explain what service involves\n        - Booking\
+        \ reference: Link from appointment to service details\n        \n        **Cost\
+        \ Structure:**\n        - Service price is ADDITIONAL to base examination\
+        \ fee\n        - Example calculation:\n          - Base examination: 500,000\
+        \ VND (department fee)\n          - X-Ray service: 200,000 VND (this service\
+        \ price)\n          - Total: 700,000 VND\n        \n        **Service Assignment\
+        \ Context:**\n        - Services are NOT selected during appointment booking\n\
+        \        - Doctor assigns services AFTER examining patient\n        - Ensures\
+        \ appropriate tests are ordered based on diagnosis\n        - Prevents unnecessary\
+        \ service bookings\n        \n        **Response Example:**\n        ```json\n\
+        \        {\n          \"id\": 15,\n          \"name\": \"Chest X-Ray\",\n\
+        \          \"description\": \"Diagnostic imaging of chest cavity to examine\
+        \ lungs, heart, and chest wall\",\n          \"price\": \"200000.00\",\n \
+        \         \"icon\": \"x-ray\",\n          \"is_active\": true,\n         \
+        \ \"department\": {\n            \"id\": 3,\n            \"name\": \"Radiology\"\
+        ,\n            \"icon\": \"scan\"\n          }\n        }\n        ```\n \
+        \       \n        **Department Context:**\n        Service details include\
+        \ department info because:\n        - Services are department-specific\n \
+        \       - Helps understand medical specialty context\n        - Useful for\
+        \ organizing services in UI\n        - Validates doctor can assign (must match\
+        \ appointment department)\n        \n        **Error Handling:**\n       \
+        \ - 404: Service not found\n        - Inactive services (is_active=False)\
+        \ may also return 404\n        - Ensures only available services are shown\n\
+        \        \n        **Best Practices:**\n        - Display service with department\
+        \ context\n        - Show price clearly (transparency)\n        - Explain\
+        \ description to patient\n        - Link to related services in same department\n\
+        \        - Use for patient education about procedures\n        \n        **Note:**\n\
+        \        For listing multiple services, use the list endpoint with optional\
+        \ department_id filter.\n        "
+      summary: Get detailed information about a specific medical service
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Service.
+        required: true
+      tags:
+      - Services
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                description: Service not found
+                content:
+                  application/json:
+                    example:
+                      detail: Not found.
+          description: ''
+  /api/v1/services/specialties/:
+    get:
+      operationId: services_specialties
+      description: Get a list of all unique specialties/departments (alias for departments
+        list)
+      summary: List all specialties/departments
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Services
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDepartmentList'
+          description: ''
+  /api/v1/token/:
+    post:
+      operationId: token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/v1/token/refresh/:
+    post:
+      operationId: token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/user/me/:
+    get:
+      operationId: user_me_retrieve
+      description: |-
+        GET /api/v1/user/profile/  -> Xem thông tin
+        PUT /api/v1/user/profile/  -> Cập nhật toàn bộ - Update user profile (full)
+        PATCH /api/v1/user/profile/-> Cập nhật một phần - Update user profile (partial)
+      tags:
+      - user
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: user_me_update
+      description: |-
+        GET /api/v1/user/profile/  -> Xem thông tin
+        PUT /api/v1/user/profile/  -> Cập nhật toàn bộ - Update user profile (full)
+        PATCH /api/v1/user/profile/-> Cập nhật một phần - Update user profile (partial)
+      tags:
+      - user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileUpdate'
+          description: ''
+    patch:
+      operationId: user_me_partial_update
+      description: |-
+        GET /api/v1/user/profile/  -> Xem thông tin
+        PUT /api/v1/user/profile/  -> Cập nhật toàn bộ - Update user profile (full)
+        PATCH /api/v1/user/profile/-> Cập nhật một phần - Update user profile (partial)
+      tags:
+      - user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileUpdate'
+          description: ''
+components:
+  schemas:
+    Appointment:
+      type: object
+      description: |-
+        Serializer for Appointment model
+        Used for CRUD operations on appointments
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        patient:
+          type: string
+          readOnly: true
+        doctor:
+          type: string
+          readOnly: true
+        department:
+          allOf:
+          - $ref: '#/components/schemas/Department'
+          readOnly: true
+        service:
+          allOf:
+          - $ref: '#/components/schemas/Service'
+          readOnly: true
+        appointment_date:
+          type: string
+          format: date
+          description: Date of appointment
+        appointment_time:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentTimeEnum'
+          description: |-
+            Time of appointment
+
+            * `08:00` - 08:00
+            * `08:30` - 08:30
+            * `09:00` - 09:00
+            * `09:30` - 09:30
+            * `10:00` - 10:00
+            * `10:30` - 10:30
+            * `11:00` - 11:00
+            * `11:30` - 11:30
+            * `12:00` - 12:00
+            * `12:30` - 12:30
+            * `13:00` - 13:00
+            * `13:30` - 13:30
+            * `14:00` - 14:00
+            * `14:30` - 14:30
+            * `15:00` - 15:00
+            * `15:30` - 15:30
+            * `16:00` - 16:00
+            * `16:30` - 16:30
+        room:
+          allOf:
+          - $ref: '#/components/schemas/Room'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          readOnly: true
+          description: |-
+            Current status of the appointment
+
+            * `booked` - Booked
+            * `confirmed` - Confirmed
+            * `completed` - Completed
+            * `cancelled` - Cancelled
+        symptoms:
+          type: string
+          nullable: true
+          description: Patient symptoms description
+        reason:
+          type: string
+          nullable: true
+          description: Reason for appointment
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+        estimated_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Estimated consultation fee
+        cancellation_reason:
+          type: string
+          readOnly: true
+          nullable: true
+          description: Reason for cancellation
+        cancelled_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When appointment was cancelled
+        rescheduled_from:
+          readOnly: true
+          nullable: true
+          description: 'Previous appointment date/time if rescheduled (format: {''date'':
+            ''YYYY-MM-DD'', ''time'': ''HH:MM''})'
+        medical_record:
+          allOf:
+          - $ref: '#/components/schemas/MedicalRecord'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - appointment_date
+      - appointment_time
+      - cancellation_reason
+      - cancelled_at
+      - created_at
+      - department
+      - doctor
+      - estimated_fee
+      - id
+      - medical_record
+      - patient
+      - rescheduled_from
+      - room
+      - service
+      - status
+      - updated_at
+    AppointmentAssignServiceRequest:
+      type: object
+      description: |-
+        Serializer for assigning service to appointment
+        Used in POST /api/v1/appointments/{id}/assign-service/
+      properties:
+        service_id:
+          type: integer
+          description: Service ID to assign to the appointment
+      required:
+      - service_id
+    AppointmentCancelRequest:
+      type: object
+      description: |-
+        Serializer for cancelling appointments
+        Used in POST /api/v1/appointments/{id}/cancel/
+      properties:
+        reason:
+          type: string
+          description: Reason for cancellation
+    AppointmentCreate:
+      type: object
+      description: |-
+        Simplified serializer for creating appointments
+        Used in POST /api/v1/appointments/
+        Room will be automatically assigned from doctor's room
+      properties:
+        doctor_id:
+          type: integer
+          description: Doctor ID
+        department_id:
+          type: integer
+          description: Department ID
+        appointment_date:
+          type: string
+          format: date
+          description: Date of appointment
+        appointment_time:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentTimeEnum'
+          description: |-
+            Time of appointment
+
+            * `08:00` - 08:00
+            * `08:30` - 08:30
+            * `09:00` - 09:00
+            * `09:30` - 09:30
+            * `10:00` - 10:00
+            * `10:30` - 10:30
+            * `11:00` - 11:00
+            * `11:30` - 11:30
+            * `12:00` - 12:00
+            * `12:30` - 12:30
+            * `13:00` - 13:00
+            * `13:30` - 13:30
+            * `14:00` - 14:00
+            * `14:30` - 14:30
+            * `15:00` - 15:00
+            * `15:30` - 15:30
+            * `16:00` - 16:00
+            * `16:30` - 16:30
+        symptoms:
+          type: string
+          nullable: true
+          description: Patient symptoms description
+        reason:
+          type: string
+          nullable: true
+          description: Reason for appointment
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+      required:
+      - appointment_date
+      - appointment_time
+      - department_id
+      - doctor_id
+    AppointmentCreateRequest:
+      type: object
+      description: |-
+        Simplified serializer for creating appointments
+        Used in POST /api/v1/appointments/
+        Room will be automatically assigned from doctor's room
+      properties:
+        doctor_id:
+          type: integer
+          description: Doctor ID
+        department_id:
+          type: integer
+          description: Department ID
+        appointment_date:
+          type: string
+          format: date
+          description: Date of appointment
+        appointment_time:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentTimeEnum'
+          description: |-
+            Time of appointment
+
+            * `08:00` - 08:00
+            * `08:30` - 08:30
+            * `09:00` - 09:00
+            * `09:30` - 09:30
+            * `10:00` - 10:00
+            * `10:30` - 10:30
+            * `11:00` - 11:00
+            * `11:30` - 11:30
+            * `12:00` - 12:00
+            * `12:30` - 12:30
+            * `13:00` - 13:00
+            * `13:30` - 13:30
+            * `14:00` - 14:00
+            * `14:30` - 14:30
+            * `15:00` - 15:00
+            * `15:30` - 15:30
+            * `16:00` - 16:00
+            * `16:30` - 16:30
+        symptoms:
+          type: string
+          nullable: true
+          description: Patient symptoms description
+        reason:
+          type: string
+          nullable: true
+          description: Reason for appointment
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+      required:
+      - appointment_date
+      - appointment_time
+      - department_id
+      - doctor_id
+    AppointmentRequest:
+      type: object
+      description: |-
+        Serializer for Appointment model
+        Used for CRUD operations on appointments
+      properties:
+        patient_id:
+          type: integer
+          writeOnly: true
+        doctor_id:
+          type: integer
+          writeOnly: true
+        department_id:
+          type: integer
+          writeOnly: true
+        service_id:
+          type: integer
+          writeOnly: true
+        appointment_date:
+          type: string
+          format: date
+          description: Date of appointment
+        appointment_time:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentTimeEnum'
+          description: |-
+            Time of appointment
+
+            * `08:00` - 08:00
+            * `08:30` - 08:30
+            * `09:00` - 09:00
+            * `09:30` - 09:30
+            * `10:00` - 10:00
+            * `10:30` - 10:30
+            * `11:00` - 11:00
+            * `11:30` - 11:30
+            * `12:00` - 12:00
+            * `12:30` - 12:30
+            * `13:00` - 13:00
+            * `13:30` - 13:30
+            * `14:00` - 14:00
+            * `14:30` - 14:30
+            * `15:00` - 15:00
+            * `15:30` - 15:30
+            * `16:00` - 16:00
+            * `16:30` - 16:30
+        room_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+        symptoms:
+          type: string
+          nullable: true
+          description: Patient symptoms description
+        reason:
+          type: string
+          nullable: true
+          description: Reason for appointment
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+      required:
+      - appointment_date
+      - appointment_time
+      - doctor_id
+      - service_id
+    AppointmentRescheduleRequest:
+      type: object
+      description: |-
+        Serializer for rescheduling appointments
+        Used in PUT /api/v1/appointments/{id}/reschedule/
+      properties:
+        new_date:
+          type: string
+          format: date
+        new_time:
+          type: string
+          format: time
+        reason:
+          type: string
+      required:
+      - new_date
+      - new_time
+    AppointmentTimeEnum:
+      enum:
+      - 08:00
+      - 08:30
+      - 09:00
+      - 09:30
+      - '10:00'
+      - '10:30'
+      - '11:00'
+      - '11:30'
+      - '12:00'
+      - '12:30'
+      - '13:00'
+      - '13:30'
+      - '14:00'
+      - '14:30'
+      - '15:00'
+      - '15:30'
+      - '16:00'
+      - '16:30'
+      type: string
+      description: |-
+        * `08:00` - 08:00
+        * `08:30` - 08:30
+        * `09:00` - 09:00
+        * `09:30` - 09:30
+        * `10:00` - 10:00
+        * `10:30` - 10:30
+        * `11:00` - 11:00
+        * `11:30` - 11:30
+        * `12:00` - 12:00
+        * `12:30` - 12:30
+        * `13:00` - 13:00
+        * `13:30` - 13:30
+        * `14:00` - 14:00
+        * `14:30` - 14:30
+        * `15:00` - 15:00
+        * `15:30` - 15:30
+        * `16:00` - 16:00
+        * `16:30` - 16:30
+    BlankEnum:
+      enum:
+      - ''
+    Department:
+      type: object
+      description: Serializer for Department model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Department name (e.g., 'Nhi khoa', 'Tim mạch')
+          maxLength: 255
+        icon:
+          type: string
+          nullable: true
+          description: Emoji/icon for UI display (e.g., '👶', '❤️')
+          maxLength: 10
+        description:
+          type: string
+          nullable: true
+          description: Department description
+        health_examination_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Health examination fee in VND
+        is_active:
+          type: boolean
+          description: Whether this department is active
+        services_count:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - services_count
+      - updated_at
+    DepartmentDetail:
+      type: object
+      description: |-
+        Serializer for Department model with detailed information
+        Includes services and doctors
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Department name (e.g., 'Nhi khoa', 'Tim mạch')
+          maxLength: 255
+        icon:
+          type: string
+          nullable: true
+          description: Emoji/icon for UI display (e.g., '👶', '❤️')
+          maxLength: 10
+        description:
+          type: string
+          nullable: true
+          description: Department description
+        health_examination_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Health examination fee in VND
+        is_active:
+          type: boolean
+          description: Whether this department is active
+        services:
+          type: string
+          readOnly: true
+        doctors:
+          type: string
+          readOnly: true
+        services_count:
+          type: string
+          readOnly: true
+        doctors_count:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - doctors
+      - doctors_count
+      - id
+      - name
+      - services
+      - services_count
+      - updated_at
+    DepartmentRequest:
+      type: object
+      description: Serializer for Department model
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Department name (e.g., 'Nhi khoa', 'Tim mạch')
+          maxLength: 255
+        icon:
+          type: string
+          nullable: true
+          description: Emoji/icon for UI display (e.g., '👶', '❤️')
+          maxLength: 10
+        description:
+          type: string
+          nullable: true
+          description: Department description
+        health_examination_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Health examination fee in VND
+        is_active:
+          type: boolean
+          description: Whether this department is active
+      required:
+      - name
+    DoctorList:
+      type: object
+      description: |-
+        Serializer for Doctor listing in booking UI
+        Includes user info, rating, experience, fee, department
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        phone_num:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 100
+        specialization:
+          type: string
+          description: Specialization (can be same as department name)
+          maxLength: 255
+        department_id:
+          type: integer
+          readOnly: true
+        department_name:
+          type: string
+          readOnly: true
+        department_icon:
+          type: string
+          readOnly: true
+        experience_years:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        consultation_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        rating:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          description: Doctor rating from 0.00 to 5.00
+        avatar_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL to doctor's profile picture
+          maxLength: 200
+        total_reviews:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Total number of reviews/ratings
+        bio:
+          type: string
+      required:
+      - bio
+      - department_icon
+      - department_id
+      - department_name
+      - email
+      - full_name
+      - id
+      - phone_num
+      - specialization
+    DoctorProfile:
+      type: object
+      description: |-
+        Serializer for Doctor profile information
+
+        Updatable fields:
+        - room: Room ID (integer) - Doctor's assigned room
+        - title: Doctor's title (e.g., 'Senior Doctor', 'Resident')
+        - specialization: Medical specialization (e.g., 'Cardiology', 'Pediatrics')
+        - bio: Doctor's biography and qualifications
+
+        Read-only fields:
+        - department_id: Department ID
+        - department_name: Department name
+        - room_id: Current room ID (for display)
+      properties:
+        department_id:
+          type: integer
+          readOnly: true
+        department_name:
+          type: string
+          readOnly: true
+        room_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        title:
+          type: string
+          maxLength: 100
+        specialization:
+          type: string
+          description: Specialization (can be same as department name)
+          maxLength: 255
+        bio:
+          type: string
+      required:
+      - bio
+      - department_id
+      - department_name
+      - room_id
+      - specialization
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    GenderEnum:
+      enum:
+      - male
+      - female
+      - other
+      type: string
+      description: |-
+        * `male` - Male
+        * `female` - Female
+        * `other` - Other
+    LoginRequest:
+      type: object
+      description: |-
+        Serializer for user login
+        - CHÚ Ý: Inherit từ Serializer (không phải ModelSerializer)
+        - Vì không tạo/update model, chỉ validate input
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    MedicalRecord:
+      type: object
+      description: Serializer for Medical Record model
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        appointment:
+          type: integer
+          readOnly: true
+          description: Appointment this medical record belongs to
+        diagnosis:
+          type: string
+          nullable: true
+          description: Doctor's diagnosis
+        prescription:
+          type: string
+          nullable: true
+          description: Prescription details (medications, dosage, instructions)
+        treatment_plan:
+          type: string
+          nullable: true
+          description: Treatment plan and recommendations
+        notes:
+          type: string
+          nullable: true
+          description: Additional medical notes
+        follow_up_date:
+          type: string
+          format: date
+          nullable: true
+          description: Recommended follow-up date if needed
+        vital_signs:
+          nullable: true
+          description: Vital signs (blood pressure, temperature, heart rate, etc.)
+            in JSON format
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Doctor who created this medical record
+        created_by_name:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - appointment
+      - created_at
+      - created_by
+      - created_by_name
+      - id
+      - updated_at
+    MedicalRecordCreateUpdateRequest:
+      type: object
+      description: |-
+        Serializer for creating/updating Medical Record
+        Used by doctor to create or update medical record
+      properties:
+        diagnosis:
+          type: string
+          nullable: true
+          description: Doctor's diagnosis
+        prescription:
+          type: string
+          nullable: true
+          description: Prescription details (medications, dosage, instructions)
+        treatment_plan:
+          type: string
+          nullable: true
+          description: Treatment plan and recommendations
+        notes:
+          type: string
+          nullable: true
+          description: Additional medical notes
+        follow_up_date:
+          type: string
+          format: date
+          nullable: true
+          description: Recommended follow-up date if needed
+        vital_signs:
+          nullable: true
+          description: Vital signs (blood pressure, temperature, heart rate, etc.)
+            in JSON format
+    MedicalRecordRequest:
+      type: object
+      description: Serializer for Medical Record model
+      properties:
+        diagnosis:
+          type: string
+          nullable: true
+          description: Doctor's diagnosis
+        prescription:
+          type: string
+          nullable: true
+          description: Prescription details (medications, dosage, instructions)
+        treatment_plan:
+          type: string
+          nullable: true
+          description: Treatment plan and recommendations
+        notes:
+          type: string
+          nullable: true
+          description: Additional medical notes
+        follow_up_date:
+          type: string
+          format: date
+          nullable: true
+          description: Recommended follow-up date if needed
+        vital_signs:
+          nullable: true
+          description: Vital signs (blood pressure, temperature, heart rate, etc.)
+            in JSON format
+    NullEnum:
+      enum:
+      - null
+    PaginatedAppointmentList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+    PaginatedDepartmentList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Department'
+    PaginatedDoctorListList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DoctorList'
+    PaginatedServiceList:
+      type: object
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+    PatchedAppointmentRequest:
+      type: object
+      description: |-
+        Serializer for Appointment model
+        Used for CRUD operations on appointments
+      properties:
+        patient_id:
+          type: integer
+          writeOnly: true
+        doctor_id:
+          type: integer
+          writeOnly: true
+        department_id:
+          type: integer
+          writeOnly: true
+        service_id:
+          type: integer
+          writeOnly: true
+        appointment_date:
+          type: string
+          format: date
+          description: Date of appointment
+        appointment_time:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentTimeEnum'
+          description: |-
+            Time of appointment
+
+            * `08:00` - 08:00
+            * `08:30` - 08:30
+            * `09:00` - 09:00
+            * `09:30` - 09:30
+            * `10:00` - 10:00
+            * `10:30` - 10:30
+            * `11:00` - 11:00
+            * `11:30` - 11:30
+            * `12:00` - 12:00
+            * `12:30` - 12:30
+            * `13:00` - 13:00
+            * `13:30` - 13:30
+            * `14:00` - 14:00
+            * `14:30` - 14:30
+            * `15:00` - 15:00
+            * `15:30` - 15:30
+            * `16:00` - 16:00
+            * `16:30` - 16:30
+        room_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+        symptoms:
+          type: string
+          nullable: true
+          description: Patient symptoms description
+        reason:
+          type: string
+          nullable: true
+          description: Reason for appointment
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+    PatchedProfileUpdateRequest:
+      type: object
+      description: |-
+        Serializer for updating User profile information
+
+        Common updatable fields (both roles):
+        - full_name: User's full name
+        - phone_num: Phone number (10 digits)
+
+        Patient-specific nested fields (patient_profile):
+        - date_of_birth: Date of birth (YYYY-MM-DD)
+        - gender: Gender (male/female/other)
+        - address: Residential address
+        - insurance_id: Health insurance ID
+        - emergency_contact: Emergency contact person name
+        - emergency_contact_phone: Emergency contact phone (10 digits)
+
+        Doctor-specific nested fields (doctor_profile):
+        - room: Room ID (integer)
+        - title: Doctor's title
+        - specialization: Medical specialization
+        - bio: Doctor's biography
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone_num:
+          type: string
+          nullable: true
+          maxLength: 20
+    PatientProfile:
+      type: object
+      description: |-
+        Serializer for Patient profile information
+
+        Updatable fields:
+        - date_of_birth: Patient's date of birth (YYYY-MM-DD)
+        - gender: Patient's gender (male/female/other)
+        - address: Patient's residential address
+        - insurance_id: Health insurance ID
+        - emergency_contact: Emergency contact person name
+        - emergency_contact_phone: Emergency contact phone (10 digits)
+      properties:
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        address:
+          type: string
+          nullable: true
+        insurance_id:
+          type: string
+          nullable: true
+        emergency_contact:
+          type: string
+          nullable: true
+          maxLength: 255
+        emergency_contact_phone:
+          type: string
+          nullable: true
+          description: Emergency contact phone number (exactly 10 digits)
+          pattern: ^\d{10}$
+    ProfileUpdate:
+      type: object
+      description: |-
+        Serializer for updating User profile information
+
+        Common updatable fields (both roles):
+        - full_name: User's full name
+        - phone_num: Phone number (10 digits)
+
+        Patient-specific nested fields (patient_profile):
+        - date_of_birth: Date of birth (YYYY-MM-DD)
+        - gender: Gender (male/female/other)
+        - address: Residential address
+        - insurance_id: Health insurance ID
+        - emergency_contact: Emergency contact person name
+        - emergency_contact_phone: Emergency contact phone (10 digits)
+
+        Doctor-specific nested fields (doctor_profile):
+        - room: Room ID (integer)
+        - title: Doctor's title
+        - specialization: Medical specialization
+        - bio: Doctor's biography
+      properties:
+        full_name:
+          type: string
+          maxLength: 255
+        phone_num:
+          type: string
+          nullable: true
+          maxLength: 20
+      required:
+      - full_name
+    ProfileUpdateRequest:
+      type: object
+      description: |-
+        Serializer for updating User profile information
+
+        Common updatable fields (both roles):
+        - full_name: User's full name
+        - phone_num: Phone number (10 digits)
+
+        Patient-specific nested fields (patient_profile):
+        - date_of_birth: Date of birth (YYYY-MM-DD)
+        - gender: Gender (male/female/other)
+        - address: Residential address
+        - insurance_id: Health insurance ID
+        - emergency_contact: Emergency contact person name
+        - emergency_contact_phone: Emergency contact phone (10 digits)
+
+        Doctor-specific nested fields (doctor_profile):
+        - room: Room ID (integer)
+        - title: Doctor's title
+        - specialization: Medical specialization
+        - bio: Doctor's biography
+      properties:
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone_num:
+          type: string
+          nullable: true
+          maxLength: 20
+      required:
+      - full_name
+    Register:
+      type: object
+      description: Serializer to register a new user
+      properties:
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        phone_num:
+          type: string
+          pattern: ^\d{10}$
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        address:
+          type: string
+      required:
+      - address
+      - date_of_birth
+      - email
+      - full_name
+      - gender
+      - phone_num
+      - role
+    RegisterRequest:
+      type: object
+      description: Serializer to register a new user
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 6
+        password_confirm:
+          type: string
+          writeOnly: true
+          minLength: 1
+        full_name:
+          type: string
+          minLength: 1
+        phone_num:
+          type: string
+          minLength: 1
+          pattern: ^\d{10}$
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        address:
+          type: string
+      required:
+      - address
+      - date_of_birth
+      - email
+      - full_name
+      - gender
+      - password
+      - password_confirm
+      - phone_num
+      - role
+    ResetPasswordRequest:
+      type: object
+      description: Serializer to reset password
+      properties:
+        uid:
+          type: string
+          minLength: 1
+        token:
+          type: string
+          minLength: 1
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 6
+        confirm_password:
+          type: string
+          writeOnly: true
+          minLength: 6
+      required:
+      - confirm_password
+      - new_password
+      - token
+      - uid
+    RoleEnum:
+      enum:
+      - admin
+      - doctor
+      - patient
+      type: string
+      description: |-
+        * `admin` - Admin
+        * `doctor` - Doctor
+        * `patient` - Patient
+    Room:
+      type: object
+      description: |-
+        Serializer for Room model
+        Used for room information in appointments
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        room_number:
+          type: string
+          description: Room number (e.g., P101)
+          maxLength: 50
+        floor:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          description: Floor number
+        department:
+          type: integer
+          nullable: true
+          description: Department/area this room belongs to
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - room_number
+    RoomRequest:
+      type: object
+      description: |-
+        Serializer for Room model
+        Used for room information in appointments
+      properties:
+        room_number:
+          type: string
+          minLength: 1
+          description: Room number (e.g., P101)
+          maxLength: 50
+        floor:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+          description: Floor number
+        department:
+          type: integer
+          nullable: true
+          description: Department/area this room belongs to
+        is_active:
+          type: boolean
+      required:
+      - room_number
+    Service:
+      type: object
+      description: |-
+        Serializer for Service model
+        Used for listing services/specialties
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          description: Service name (e.g., Khám tổng quát)
+          maxLength: 255
+        department_id:
+          type: string
+          readOnly: true
+        department_name:
+          type: string
+          readOnly: true
+        department_icon:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          nullable: true
+          description: Service description
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Service price in VND
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - department_icon
+      - department_id
+      - department_name
+      - id
+      - name
+    ServiceRequest:
+      type: object
+      description: |-
+        Serializer for Service model
+        Used for listing services/specialties
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Service name (e.g., Khám tổng quát)
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          description: Service description
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Service price in VND
+        is_active:
+          type: boolean
+      required:
+      - name
+    StatusEnum:
+      enum:
+      - booked
+      - confirmed
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `booked` - Booked
+        * `confirmed` - Confirmed
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    TokenObtainPair:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    User:
+      type: object
+      description: Serializer for User profile information
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 255
+        phone_num:
+          type: string
+          nullable: true
+          maxLength: 20
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        patient_profile:
+          allOf:
+          - $ref: '#/components/schemas/PatientProfile'
+          readOnly: true
+        doctor_profile:
+          allOf:
+          - $ref: '#/components/schemas/DoctorProfile'
+          readOnly: true
+      required:
+      - created_at
+      - doctor_profile
+      - email
+      - full_name
+      - id
+      - patient_profile
+      - role
+      - updated_at
+    VerifyResetTokenRequest:
+      type: object
+      description: Serializer to verify password reset token
+      properties:
+        uid:
+          type: string
+          minLength: 1
+        token:
+          type: string
+          minLength: 1
+      required:
+      - token
+      - uid
+  securitySchemes:
+    Bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+servers:
+- url: http://127.0.0.1:8000
+  description: Development server (Local)
+- url: https://https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net
+  description: Production server
+tags:
+- name: Authentication
+  description: User authentication APIs (register, login, logout)
+- name: Accounts
+  description: User account management APIs (profile, doctors list)
+- name: Departments
+  description: Department information APIs
+- name: Services
+  description: Medical services and specialties APIs
+- name: Appointments
+  description: Appointment management APIs (create, list, update, cancel)
