@@ -98,7 +98,11 @@ else:
                 }
             }
         }
-  
+
+if DEBUG:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 # SECURITY WARNING: don't run with debug turned on in production!
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -130,8 +134,7 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.accounts',
     'apps.appointments',
-
-
+    'apps.services',
 ]
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
