@@ -19,6 +19,9 @@ class OpenRouterService:
         self.model = "tngtech/deepseek-r1t2-chimera:free"
         self.site_url = "https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net"
         
+        # Debug log
+        print(f"[AI Service] API Key configured: {'Yes' if self.api_key else 'No - OPENROUTER_API_KEY not found in environment'}")
+        
         # Initialize OpenAI client with OpenRouter base URL
         self.client = None
         if self.api_key:
@@ -30,6 +33,8 @@ class OpenRouterService:
                     "X-Title": "MyHealthCare AI Service",
                 }
             )
+        else:
+            print("[AI Service] WARNING: OpenRouter API key not configured. AI features will not work.")
     
     def _get_available_departments(self):
         """

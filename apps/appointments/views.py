@@ -298,15 +298,8 @@ class SuggestDepartmentView(APIView):
     API View to suggest medical departments based on patient symptoms
     Uses AI to analyze symptoms and recommend appropriate departments
     """
-    permission_classes = [IsAuthenticated]  # Public access - no authentication required
+    permission_classes = [IsAuthenticated]  # Requires authentication
     
-    
-    def post(self, request):
-        """
-        POST /api/v1/appointments/suggest-department/
-        Suggest appropriate medical department based on symptoms
-        """
-        
     @extend_schema(
         operation_id="suggest_department",
         summary="AI suggests medical department based on symptoms",
