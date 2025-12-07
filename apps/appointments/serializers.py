@@ -179,6 +179,7 @@ class DoctorListSerializer(serializers.ModelSerializer):
     Serializer for Doctor listing in booking UI
     Includes user info, rating, experience, fee, department
     """
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
     full_name = serializers.CharField(source='user.full_name', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
     phone_num = serializers.CharField(source='user.phone_num', read_only=True)
@@ -190,6 +191,7 @@ class DoctorListSerializer(serializers.ModelSerializer):
         model = Doctor
         fields = [
             'id',
+            'user_id',  # User ID for booking (AppointmentCreateSerializer expects User.id)
             'full_name',
             'email',
             'phone_num',
@@ -205,7 +207,7 @@ class DoctorListSerializer(serializers.ModelSerializer):
             'total_reviews',
             'bio'
         ]
-        read_only_fields = ['id', 'license_number']
+        read_only_fields = ['id', 'user_id', 'license_number']
 
 
 class AvailableSlotSerializer(serializers.Serializer):
