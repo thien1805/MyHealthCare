@@ -16,7 +16,7 @@ class OpenRouterService:
     def __init__(self):
         self.api_key = os.environ.get('OPENROUTER_API_KEY', '')
         self.base_url = "https://openrouter.ai/api/v1"
-        self.model = "anthropic/claude-3.5-sonnet"
+        self.model = "tngtech/deepseek-r1t2-chimera:free"
         self.site_url = "https://myhealthcare-api-h3amhrevg2feeab9.southeastasia-01.azurewebsites.net"
         
         # Initialize OpenAI client with OpenRouter base URL
