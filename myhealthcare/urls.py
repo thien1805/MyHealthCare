@@ -27,13 +27,24 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 from apps.accounts.views import ProfileView
-from apps.appointments.views import ServiceViewSet, AppointmentViewSet, DepartmentViewSet, AvailableSlotsView, SuggestDepartmentView, HealthChatbotView
+from apps.appointments.views import (
+    ServiceViewSet, AppointmentViewSet, DepartmentViewSet, 
+    AvailableSlotsView, SuggestDepartmentView, HealthChatbotView,
+    DoctorAppointmentViewSet, PatientAppointmentViewSet
+)
 
 # Create main API router for browsable API root
 api_router = DefaultRouter()
 api_router.register(r'departments', DepartmentViewSet, basename='department')
 api_router.register(r'services', ServiceViewSet, basename='service')
 api_router.register(r'appointments', AppointmentViewSet, basename='appointment')
+
+# Role-based routers
+doctor_router = DefaultRouter()
+doctor_router.register(r'appointments', DoctorAppointmentViewSet, basename='doctor-appointment')
+
+patient_router = DefaultRouter()
+patient_router.register(r'appointments', PatientAppointmentViewSet, basename='patient-appointment')
 
 urlpatterns = [
     path('api/v1/admin/', admin.site.urls),
@@ -55,6 +66,10 @@ urlpatterns = [
 
     # API Root - Browsable API interface (shows all available endpoints)
     path('api/v1/', include(api_router.urls)),
+    
+    # Role-based endpoints
+    path('api/v1/doctor/', include(doctor_router.urls)),  # Doctor-only endpoints
+    path('api/v1/patient/', include(patient_router.urls)),  # Patient-only endpoints
     
     # Accounts URLs
     path('api/v1/', include('apps.accounts.urls'), name='accounts'),

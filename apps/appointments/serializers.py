@@ -186,6 +186,12 @@ class DoctorListSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source='department.name', read_only=True)
     department_id = serializers.IntegerField(source='department.id', read_only=True)
     department_icon = serializers.CharField(source='department.icon', read_only=True)
+    health_examination_fee = serializers.DecimalField(
+        source='department.health_examination_fee', 
+        max_digits=10, 
+        decimal_places=2, 
+        read_only=True
+    )
     
     class Meta:
         model = Doctor
@@ -200,8 +206,9 @@ class DoctorListSerializer(serializers.ModelSerializer):
             'department_id',
             'department_name',
             'department_icon',
+            'health_examination_fee',  # Department's health examination fee
             'experience_years',
-            'consultation_fee',
+            'consultation_fee',  # Kept for backwards compatibility, will be deprecated
             'rating',
             'avatar_url',
             'total_reviews',

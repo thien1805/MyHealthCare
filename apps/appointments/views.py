@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.db.models import Q
 from datetime import datetime, timedelta, time as dt_time
 from django.contrib.auth import get_user_model
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
 import json
 
@@ -2595,6 +2595,106 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
     @extend_schema(
+        operation_id="appointments_update_status",
+        summary="Doctor updates appointment status",
+        description="""Update appointment status.
+        
+        **Authorization & Permissions:**
+        - **Only doctors** can update appointment status
+        - Doctor must be assigned to the appointment
+        
+        **Valid Status Transitions:**
+        - `booked` → `confirmed` (Doctor confirms the appointment)
+        - `confirmed` → `completed` (Consultation finished)
+        - `confirmed` → `no_show` (Patient didn't show up)
+        - `booked` → `cancelled` (Cancel before confirmation)
+        
+        **Required Field:**
+        - `status`: New status (confirmed, completed, no_show, cancelled)
+        """,
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'status': {
+                        'type': 'string',
+                        'enum': ['confirmed', 'completed', 'no_show', 'cancelled'],
+                        'description': 'New status for the appointment'
+                    }
+                },
+                'required': ['status']
+            }
+        },
+        responses={
+            200: OpenApiResponse(
+                description="Status updated successfully",
+                response=AppointmentSerializer
+            ),
+            400: OpenApiResponse(description="Invalid status transition"),
+            403: OpenApiResponse(description="Not authorized"),
+            404: OpenApiResponse(description="Appointment not found")
+        }
+    )
+    @action(detail=True, methods=['patch'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        """
+        PATCH /api/v1/appointments/{id}/update-status/
+        Update appointment status (for doctors)
+        """
+        appointment = self.get_object()
+        
+        # Only doctors can update status
+        if request.user.role != 'doctor':
+            return Response({
+                "success": False,
+                "error": "Only doctors can update appointment status"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check ownership - only the doctor of this appointment can update status
+        if appointment.doctor != request.user:
+            return Response({
+                "success": False,
+                "error": "You can only update status for your own appointments"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        new_status = request.data.get('status')
+        if not new_status:
+            return Response({
+                "success": False,
+                "error": "status field is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Define valid status transitions
+        valid_transitions = {
+            'booked': ['confirmed', 'cancelled'],
+            'confirmed': ['completed', 'no_show', 'cancelled'],
+            'completed': [],  # Cannot change completed
+            'cancelled': [],  # Cannot change cancelled
+            'no_show': []  # Cannot change no_show
+        }
+        
+        current_status = appointment.status
+        allowed_statuses = valid_transitions.get(current_status, [])
+        
+        if new_status not in allowed_statuses:
+            return Response({
+                "success": False,
+                "error": f"Cannot change status from '{current_status}' to '{new_status}'. Allowed: {allowed_statuses}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update status
+        appointment.status = new_status
+        appointment.save()
+        
+        response_serializer = AppointmentSerializer(appointment)
+        
+        return Response({
+            "success": True,
+            "message": f"Appointment status updated to {new_status}",
+            "appointment": response_serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @extend_schema(
         operation_id="appointments_assign_service",
         summary="Doctor assigns medical service to appointment",
         description="""Allow doctors to assign additional medical services during/after consultation.
@@ -3515,3 +3615,126 @@ on when to seek professional medical attention.
                 'success': False,
                 'error': 'Chatbot service temporarily unavailable'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ==================== ROLE-BASED VIEWSETS ====================
+
+class DoctorAppointmentViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for Doctor to manage their appointments
+    GET /api/v1/doctor/appointments/ - List doctor's appointments
+    GET /api/v1/doctor/appointments/{id}/ - Get appointment detail
+    
+    Only accessible by authenticated doctors.
+    """
+    serializer_class = AppointmentSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultSetPagination
+
+    def get_queryset(self):
+        """Only return appointments for the logged-in doctor"""
+        user = self.request.user
+        if user.role != 'doctor':
+            return Appointment.objects.none()
+        
+        queryset = Appointment.objects.filter(doctor=user).select_related(
+            'patient', 'doctor', 'department', 'room', 'service'
+        ).order_by('-appointment_date', '-appointment_time')
+        
+        # Filter by status
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Filter by date range
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(appointment_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(appointment_date__lte=date_to)
+        
+        # Filter by patient_id
+        patient_id = self.request.query_params.get('patient_id')
+        if patient_id:
+            queryset = queryset.filter(patient_id=patient_id)
+        
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """List all appointments for the logged-in doctor"""
+        if request.user.role != 'doctor':
+            return Response({
+                "success": False,
+                "error": "Only doctors can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Get a specific appointment"""
+        if request.user.role != 'doctor':
+            return Response({
+                "success": False,
+                "error": "Only doctors can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().retrieve(request, *args, **kwargs)
+
+
+class PatientAppointmentViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for Patient to view their appointments
+    GET /api/v1/patient/appointments/ - List patient's appointments
+    GET /api/v1/patient/appointments/{id}/ - Get appointment detail
+    
+    Only accessible by authenticated patients.
+    """
+    serializer_class = AppointmentSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultSetPagination
+
+    def get_queryset(self):
+        """Only return appointments for the logged-in patient"""
+        user = self.request.user
+        if user.role != 'patient':
+            return Appointment.objects.none()
+        
+        queryset = Appointment.objects.filter(patient=user).select_related(
+            'patient', 'doctor', 'department', 'room', 'service'
+        ).prefetch_related('medical_record').order_by('-appointment_date', '-appointment_time')
+        
+        # Filter by status
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Filter by date range
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(appointment_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(appointment_date__lte=date_to)
+        
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """List all appointments for the logged-in patient"""
+        if request.user.role != 'patient':
+            return Response({
+                "success": False,
+                "error": "Only patients can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Get a specific appointment"""
+        if request.user.role != 'patient':
+            return Response({
+                "success": False,
+                "error": "Only patients can access this endpoint"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().retrieve(request, *args, **kwargs)
