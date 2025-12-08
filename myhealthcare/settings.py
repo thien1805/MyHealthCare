@@ -88,16 +88,58 @@ if IS_PRODUCTION:
         )
 else:
     # DEVELOPMENT: Local environment
-    # ALWAYS use local database, ignore any production connection strings
+    # Try local database first, fallback to Azure if local not available
+    
+    # Check if local PostgreSQL service is configured
+    local_pg_service = os.getenv("PGSERVICE", "MyHealthCare_service")
+    local_pg_passfile = os.getenv("PGPASSFILE", os.path.expanduser("~/.pgpass"))
+    
+    # Try to use local database first
+    use_local_db = True
+    
+    # Check if .pgpass file exists (indicates local setup)
+    if not os.path.exists(local_pg_passfile):
+        use_local_db = False
+    
+    # Allow forcing Azure DB via environment variable
+    if os.getenv("USE_AZURE_DB", "").lower() == "true":
+        use_local_db = False
+    
+    if use_local_db:
+        # Use local PostgreSQL
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
                 'OPTIONS': {
-                    'service': os.getenv("PGSERVICE", "MyHealthCare_service"),
-                    'passfile': os.getenv("PGPASSFILE", os.path.expanduser("~/.pgpass")),
+                    'service': local_pg_service,
+                    'passfile': local_pg_passfile,
                 }
             }
         }
+    else:
+        # Fallback to Azure PostgreSQL
+        if os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'):
+            DATABASES = {
+                'default': dj_database_url.parse(
+                    os.getenv('AZURE_POSTGRESQL_CONNECTIONSTRING'),
+                    conn_max_age=600
+                )
+            }
+        elif os.getenv('DATABASE_URL'):
+            DATABASES = {
+                'default': dj_database_url.config(
+                    default=os.getenv('DATABASE_URL'),
+                    conn_max_age=600
+                )
+            }
+        else:
+            # Last resort: Use SQLite for quick testing
+            DATABASES = {
+                'default': {
+                    'ENGINE': 'django.db.backends.sqlite3',
+                    'NAME': BASE_DIR / 'db.sqlite3',
+                }
+            }
 
 if DEBUG:
     SECURE_SSL_REDIRECT = False
@@ -267,6 +309,21 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
 ]
+
+# Add Frontend URL (Vercel) to CORS
+frontend_url = os.getenv('FRONTEND_URL', '')
+if frontend_url:
+    # Remove trailing slash and add to allowed origins
+    frontend_url = frontend_url.rstrip('/')
+    if frontend_url not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(frontend_url)
+    # Also add without https:// prefix variations
+    if frontend_url.startswith('https://'):
+        http_version = frontend_url.replace('https://', 'http://')
+        if http_version not in CORS_ALLOWED_ORIGINS:
+            CORS_ALLOWED_ORIGINS.append(http_version)
+
+# Add Azure hostname to CORS
 if os.getenv('WEBSITE_HOSTNAME'):
     hostname = os.getenv('WEBSITE_HOSTNAME').rstrip('/')
     if hostname.startswith('https://'):
