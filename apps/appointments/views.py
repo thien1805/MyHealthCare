@@ -1076,7 +1076,7 @@ class AvailableSlotsView(APIView):
         booked_appointments = Appointment.objects.filter(
             doctor=doctor,
             appointment_date=appointment_date,
-            status__in=['booked', 'confirmed']
+            status='upcoming'  # Only upcoming appointments block slots
         ).values_list('appointment_time', flat=True)
         
         # Get available rooms for the department if provided, otherwise get any available room
@@ -1809,7 +1809,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             reason=serializer.validated_data.get('reason'),
             notes=serializer.validated_data.get('notes'),
             estimated_fee=health_examination_fee,  # Chỉ tính phí thăm khám
-            status='booked'
+            status='upcoming'  # Directly set to upcoming, no confirmation needed
         )
         
         # Return full appointment data
@@ -2562,7 +2562,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             doctor=appointment.doctor,
             appointment_date=new_date,
             appointment_time=new_time,
-            status__in=['booked', 'confirmed']
+            status='upcoming'
         ).exclude(id=appointment.id).exists()
         
         if conflicting_appointment:
@@ -2583,7 +2583,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         appointment.appointment_time = new_time
         appointment.rescheduled_from = old_date_time
         appointment.notes = f"{appointment.notes or ''}\nRescheduled: {reason}".strip()
-        appointment.status = 'booked'  # Reset to booked status
+        appointment.status = 'upcoming'  # Reset to upcoming status
         appointment.save()
         
         response_serializer = AppointmentSerializer(appointment)
