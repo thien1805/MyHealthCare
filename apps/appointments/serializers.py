@@ -513,7 +513,7 @@ class AppointmentCreateSerializer(serializers.ModelSerializer):
                 doctor=doctor,
                 appointment_date=appointment_date,
                 appointment_time=appointment_time,
-                status__in=['booked', 'confirmed']
+                status__in=['upcoming', 'booked', 'confirmed']
             ).exists()
             
             if conflicting_appointment:
