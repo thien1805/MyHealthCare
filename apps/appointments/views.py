@@ -2666,11 +2666,9 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         
         # Define valid status transitions
         valid_transitions = {
-            'booked': ['confirmed', 'cancelled'],
-            'confirmed': ['completed', 'no_show', 'cancelled'],
+            'upcoming': ['completed', 'cancelled'],
             'completed': [],  # Cannot change completed
             'cancelled': [],  # Cannot change cancelled
-            'no_show': []  # Cannot change no_show
         }
         
         current_status = appointment.status
@@ -3357,8 +3355,8 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "error": "You can only create medical records for your own appointments"
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Only allow medical record for confirmed or completed appointments
-        if appointment.status not in ["confirmed", "completed"]:
+        # Only allow medical record for upcoming or completed appointments
+        if appointment.status not in ["upcoming", "completed"]:
             return Response({
                 "success": False,
                 "error": f"Cannot create medical record for appointment with status: {appointment.status}"
