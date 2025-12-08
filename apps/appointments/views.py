@@ -3298,6 +3298,419 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "success": False,
                 "errors": serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
+    
+    @extend_schema(
+        operation_id="doctor_get_patients",
+        summary="Doctor views list of their patients with medical records",
+        description="""Get paginated list of all patients who have completed appointments with this doctor,
+        including their medical records and appointment history.
+        
+        **Authorization & Permissions:**
+        - Only doctors can access this endpoint
+        - Each doctor sees only their own patients
+        - 403 error for non-doctor users
+        
+        **Patient Data Includes:**
+        - Patient basic information (name, email, phone, age, gender)
+        - List of appointments with this doctor
+        - Medical records created for this patient
+        - Appointment status and dates
+        - Vital signs and diagnosis information
+        
+        **Filtering Options (Query Parameters):**
+        - `status`: Filter by appointment status (booked, confirmed, completed, cancelled)
+        - `date_from`: Show appointments from this date (YYYY-MM-DD)
+        - `date_to`: Show appointments until this date (YYYY-MM-DD)
+        - `page`: Page number (default: 1)
+        - `page_size`: Results per page (default: 10, max: 100)
+        
+        **Sorting:**
+        - Default: Most recent appointments first
+        - Patients with newest appointments appear first
+        
+        **Use Cases:**
+        - Doctor dashboard: View all their patients
+        - Doctor patient management: Access patient history and records
+        - Medical records: Review past diagnoses and treatments
+        - Follow-up scheduling: Plan next appointments
+        - Patient statistics: Analyze patient demographics
+        
+        **Response Structure:**
+        ```json
+        {
+          "count": 25,
+          "next": "...",
+          "previous": null,
+          "results": [
+            {
+              "id": 1,
+              "full_name": "John Doe",
+              "email": "john@example.com",
+              "phone_num": "+84901234567",
+              "age": 35,
+              "gender": "M",
+              "appointment_count": 3,
+              "last_appointment": "2024-12-15",
+              "appointments": [...],
+              "medical_records": [...]
+            }
+          ]
+        }
+        ```
+        """,
+        tags=["Appointments - Doctor"],
+        parameters=[
+            OpenApiParameter(
+                name='status',
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description='Filter by appointment status (booked, confirmed, completed, cancelled)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='date_from',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Show appointments from this date (YYYY-MM-DD)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='date_to',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Show appointments until this date (YYYY-MM-DD)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Page number',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results per page (max 100)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: {
+                'description': 'List of patients with medical records',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'count': 3,
+                            'next': None,
+                            'previous': None,
+                            'results': [
+                                {
+                                    'id': 1,
+                                    'full_name': 'John Doe',
+                                    'email': 'john@example.com',
+                                    'phone_num': '+84901234567',
+                                    'age': 35,
+                                    'gender': 'M',
+                                    'appointment_count': 3,
+                                    'last_appointment': '2024-12-15',
+                                    'appointments': [
+                                        {
+                                            'id': 1,
+                                            'appointment_date': '2024-12-15',
+                                            'appointment_time': '09:00:00',
+                                            'status': 'completed',
+                                            'symptoms': 'Chest pain',
+                                            'medical_record': {
+                                                'id': 1,
+                                                'diagnosis': 'Heartburn',
+                                                'prescription': 'Antacids',
+                                                'created_at': '2024-12-15T10:00:00Z'
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            403: {
+                'description': 'Only doctors can access this endpoint',
+            }
+        }
+    )
+    @action(detail=False, methods=['get'], url_path='my-patients')
+    def my_patients(self, request):
+        """
+        GET /api/v1/appointments/my-patients/
+        Doctor views list of their patients with medical records
+        """
+        # Only doctors can access
+        if request.user.role != 'doctor':
+            return Response({
+                "success": False,
+                "error": "Only doctors can view patients"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get all completed appointments for this doctor
+        appointments = Appointment.objects.filter(
+            doctor=request.user
+        ).select_related(
+            'patient',
+            'medical_record',
+            'appointment'
+        ).order_by('-appointment_date', '-appointment_time')
+        
+        # Filter by status if provided
+        status_filter = request.query_params.get('status', None)
+        if status_filter:
+            appointments = appointments.filter(status=status_filter)
+        
+        # Filter by date range
+        date_from = request.query_params.get('date_from', None)
+        date_to = request.query_params.get('date_to', None)
+        
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                appointments = appointments.filter(appointment_date__gte=date_from_obj)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                appointments = appointments.filter(appointment_date__lte=date_to_obj)
+            except ValueError:
+                pass
+        
+        # Get unique patients
+        patient_ids = appointments.values_list('patient', flat=True).distinct()
+        
+        # Build patient data
+        patients_data = []
+        for patient_id in patient_ids:
+            patient = User.objects.get(id=patient_id)
+            patient_appointments = appointments.filter(patient=patient)
+            
+            patients_data.append({
+                'id': patient.id,
+                'full_name': patient.full_name,
+                'email': patient.email,
+                'phone_num': patient.phone_num,
+                'age': patient.age if hasattr(patient, 'age') else None,
+                'gender': patient.gender if hasattr(patient, 'gender') else None,
+                'appointment_count': patient_appointments.count(),
+                'last_appointment': patient_appointments.first().appointment_date if patient_appointments.exists() else None,
+                'appointments': AppointmentSerializer(patient_appointments, many=True).data
+            })
+        
+        # Paginate results
+        paginator = StandardResultSetPagination()
+        paginated_data = paginator.paginate_queryset(patients_data, request)
+        
+        return paginator.get_paginated_response(paginated_data)
+    
+    @extend_schema(
+        operation_id="patient_get_medical_records",
+        summary="Patient views their own medical records",
+        description="""Get list of all medical records created by doctors after patient appointments.
+        
+        **Authorization & Permissions:**
+        - Patients can view only their own medical records
+        - Doctors can view medical records they created
+        - Admins can view all medical records
+        - 403 error if trying to access other patient's records
+        
+        **Medical Record Data Includes:**
+        - Doctor's diagnosis
+        - Prescription details
+        - Treatment plan
+        - Medical notes
+        - Follow-up date recommendations
+        - Vital signs recorded (blood pressure, temperature, heart rate, etc.)
+        - Creation and last update timestamps
+        - Associated appointment details
+        
+        **Filtering Options (Query Parameters):**
+        - `appointment_id`: Filter by specific appointment
+        - `created_date_from`: Records created from this date (YYYY-MM-DD)
+        - `created_date_to`: Records created until this date (YYYY-MM-DD)
+        - `page`: Page number (default: 1)
+        - `page_size`: Results per page (default: 10, max: 100)
+        
+        **Sorting:**
+        - Default: Most recent medical records first
+        - Ordered by created_at descending
+        
+        **Use Cases:**
+        - Patient medical history: View all past consultations and diagnoses
+        - Medical documentation: Download/print medical records
+        - Follow-up planning: Check next visit dates
+        - Specialist referral: Share records with other doctors
+        - Insurance claims: Provide documentation
+        - Health tracking: Monitor treatment progress
+        
+        **Response Structure:**
+        ```json
+        {
+          "count": 12,
+          "next": "...",
+          "previous": null,
+          "results": [
+            {
+              "id": 1,
+              "appointment": 45,
+              "diagnosis": "Hypertension Stage 1",
+              "prescription": "Lisinopril 10mg once daily...",
+              "treatment_plan": "Continue medication, reduce salt intake...",
+              "notes": "BP improved with medication",
+              "follow_up_date": "2025-02-15",
+              "vital_signs": {
+                "blood_pressure": "135/85",
+                "heart_rate": 72,
+                "temperature": 36.8
+              },
+              "created_by_name": "Dr. Smith",
+              "created_at": "2024-12-15T10:00:00Z",
+              "updated_at": "2024-12-15T10:00:00Z"
+            }
+          ]
+        }
+        ```
+        
+        **Vital Signs Data:**
+        - Blood pressure (systolic/diastolic)
+        - Heart rate (beats per minute)
+        - Temperature (Celsius)
+        - Respiratory rate
+        - Oxygen saturation
+        - Weight and BMI
+        - Blood glucose (for diabetes patients)
+        
+        **Best Practices:**
+        - Review medical records after each appointment
+        - Follow treatment plan and take prescriptions as directed
+        - Keep track of follow-up dates
+        - Share relevant records with other healthcare providers
+        - Contact doctor if you don't understand any recommendations
+        """,
+        tags=["Appointments - Patient"],
+        parameters=[
+            OpenApiParameter(
+                name='appointment_id',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Filter by specific appointment ID',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='created_date_from',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Records created from this date (YYYY-MM-DD)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='created_date_to',
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description='Records created until this date (YYYY-MM-DD)',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Page number',
+                required=False,
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                description='Number of results per page (max 100)',
+                required=False,
+            ),
+        ],
+        responses={
+            200: MedicalRecordSerializer(many=True),
+            403: {
+                'description': 'Permission denied - cannot view other patient\'s records',
+            }
+        }
+    )
+    @action(detail=False, methods=['get'], url_path='my-medical-records')
+    def my_medical_records(self, request):
+        """
+        GET /api/v1/appointments/my-medical-records/
+        Patient views their own medical records
+        """
+        user = request.user
+        
+        # Determine whose records to show
+        if user.role == 'patient':
+            # Patient can only see their own medical records
+            medical_records = MedicalRecord.objects.filter(
+                appointment__patient=user
+            ).select_related(
+                'appointment',
+                'created_by'
+            ).order_by('-created_at')
+        elif user.role == 'doctor':
+            # Doctor can see medical records they created
+            medical_records = MedicalRecord.objects.filter(
+                created_by=user
+            ).select_related(
+                'appointment',
+                'created_by'
+            ).order_by('-created_at')
+        elif user.role == 'admin':
+            # Admin can see all medical records
+            medical_records = MedicalRecord.objects.all().select_related(
+                'appointment',
+                'created_by'
+            ).order_by('-created_at')
+        else:
+            return Response({
+                'success': False,
+                'error': 'Invalid user role'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Filter by appointment if provided
+        appointment_id = request.query_params.get('appointment_id', None)
+        if appointment_id:
+            medical_records = medical_records.filter(appointment_id=appointment_id)
+        
+        # Filter by date range
+        created_date_from = request.query_params.get('created_date_from', None)
+        created_date_to = request.query_params.get('created_date_to', None)
+        
+        if created_date_from:
+            try:
+                date_from_obj = datetime.strptime(created_date_from, '%Y-%m-%d').date()
+                medical_records = medical_records.filter(created_at__date__gte=date_from_obj)
+            except ValueError:
+                pass
+        
+        if created_date_to:
+            try:
+                date_to_obj = datetime.strptime(created_date_to, '%Y-%m-%d').date()
+                medical_records = medical_records.filter(created_at__date__lte=date_to_obj)
+            except ValueError:
+                pass
+        
+        # Paginate results
+        page = self.paginate_queryset(medical_records)
+        if page is not None:
+            serializer = MedicalRecordSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = MedicalRecordSerializer(medical_records, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
             
 class HealthChatbotView(APIView):
     """

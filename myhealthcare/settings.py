@@ -89,15 +89,12 @@ if IS_PRODUCTION:
 else:
     # DEVELOPMENT: Local environment
     # ALWAYS use local database, ignore any production connection strings
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.postgresql',
-                'OPTIONS': {
-                    'service': os.getenv("PGSERVICE", "MyHealthCare_service"),
-                    'passfile': os.getenv("PGPASSFILE", os.path.expanduser("~/.pgpass")),
-                }
-            }
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
+    }
 
 if DEBUG:
     SECURE_SSL_REDIRECT = False
