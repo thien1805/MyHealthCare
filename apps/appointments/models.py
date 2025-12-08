@@ -215,6 +215,19 @@ class MedicalRecord(models.Model):
     Medical Record model - Doctor's medical record for an appointment
     One-to-one relationship with Appointment
     """
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('not_required', 'Not Required'),  # When service fee is 0
+    ]
+    
+    PAYMENT_METHOD_CHOICES = [
+        ('card', 'Credit/Debit Card'),
+        ('ewallet', 'E-Wallet'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('cash', 'Cash at Clinic'),
+    ]
+    
     appointment = models.OneToOneField(
         Appointment,
         on_delete=models.CASCADE,
@@ -251,6 +264,43 @@ class MedicalRecord(models.Model):
         null=True,
         help_text="Vital signs (blood pressure, temperature, heart rate, etc.) in JSON format"
     )
+    # Payment fields
+    service_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Service fee from the assigned service"
+    )
+    examination_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Examination fee from the department"
+    )
+    total_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        help_text="Total fee (service_fee + examination_fee)"
+    )
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default='pending',
+        help_text="Payment status"
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Payment method used"
+    )
+    paid_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When payment was completed"
+    )
     created_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -262,6 +312,14 @@ class MedicalRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    def save(self, *args, **kwargs):
+        # Auto-calculate total fee
+        self.total_fee = (self.service_fee or 0) + (self.examination_fee or 0)
+        # Auto-set payment status to not_required if total is 0
+        if self.total_fee == 0:
+            self.payment_status = 'not_required'
+        super().save(*args, **kwargs)
+    
     class Meta:
         db_table = 'medical_records'
         verbose_name = 'Medical Record'
@@ -270,6 +328,7 @@ class MedicalRecord(models.Model):
         indexes = [
             models.Index(fields=['appointment']),
             models.Index(fields=['created_by', '-created_at']),
+            models.Index(fields=['payment_status']),
         ]
     
     def __str__(self):

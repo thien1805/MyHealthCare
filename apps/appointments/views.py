@@ -3382,6 +3382,29 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             serializer.save()
             
+            # Calculate fees from service and department
+            service_fee = 0
+            examination_fee = 0
+            
+            if appointment.service:
+                service_fee = float(appointment.service.price or 0)
+            
+            if appointment.department:
+                examination_fee = float(appointment.department.health_examination_fee or 0)
+            
+            # Update medical record with fees
+            medical_record.service_fee = service_fee
+            medical_record.examination_fee = examination_fee
+            medical_record.total_fee = service_fee + examination_fee
+            
+            # Set payment status based on total fee
+            if medical_record.total_fee == 0:
+                medical_record.payment_status = 'not_required'
+            else:
+                medical_record.payment_status = 'pending'
+            
+            medical_record.save()
+            
             # Refresh from DB to get updated data
             medical_record.refresh_from_db()
             response_serializer = MedicalRecordSerializer(medical_record)
@@ -3396,6 +3419,102 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 "success": False,
                 "errors": serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        operation_id="pay_medical_record",
+        summary="Pay for medical record services",
+        description="Patient completes payment for medical record service fees",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'payment_method': {
+                        'type': 'string',
+                        'enum': ['card', 'ewallet', 'bank_transfer', 'cash'],
+                        'description': 'Payment method'
+                    }
+                },
+                'required': ['payment_method']
+            }
+        },
+        responses={200: MedicalRecordSerializer},
+        tags=["Appointments", "Payment"]
+    )
+    @action(detail=True, methods=['post'], url_path='pay')
+    def pay_medical_record(self, request, pk=None):
+        """
+        POST /api/v1/appointments/{id}/pay/
+        Patient pays for medical record service fees
+        """
+        from django.utils import timezone
+        
+        appointment = self.get_object()
+        
+        # Only patients can pay
+        if request.user.role != 'patient':
+            return Response({
+                "success": False,
+                "error": "Only patients can make payments"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check ownership - only the patient of this appointment can pay
+        if appointment.patient != request.user:
+            return Response({
+                "success": False,
+                "error": "You can only pay for your own appointments"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if medical record exists
+        try:
+            medical_record = appointment.medical_record
+        except MedicalRecord.DoesNotExist:
+            return Response({
+                "success": False,
+                "error": "No medical record found for this appointment"
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check payment status
+        if medical_record.payment_status == 'paid':
+            return Response({
+                "success": False,
+                "error": "This medical record has already been paid"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if medical_record.payment_status == 'not_required':
+            return Response({
+                "success": False,
+                "error": "No payment required for this medical record"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get payment method
+        payment_method = request.data.get('payment_method')
+        if not payment_method:
+            return Response({
+                "success": False,
+                "error": "Payment method is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        valid_methods = ['card', 'ewallet', 'bank_transfer', 'cash']
+        if payment_method not in valid_methods:
+            return Response({
+                "success": False,
+                "error": f"Invalid payment method. Choose from: {', '.join(valid_methods)}"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Process payment (in a real app, integrate with payment gateway here)
+        medical_record.payment_status = 'paid'
+        medical_record.payment_method = payment_method
+        medical_record.paid_at = timezone.now()
+        medical_record.save()
+        
+        response_serializer = MedicalRecordSerializer(medical_record)
+        
+        return Response({
+            "success": True,
+            "message": "Payment completed successfully",
+            "medical_record": response_serializer.data
+        }, status=status.HTTP_200_OK)
+
             
 class HealthChatbotView(APIView):
     """

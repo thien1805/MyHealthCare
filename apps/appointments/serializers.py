@@ -232,6 +232,7 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
     Serializer for Medical Record model
     """
     created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
+    service_name = serializers.SerializerMethodField()
     
     class Meta:
         model = MedicalRecord
@@ -244,6 +245,13 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
             'notes',
             'follow_up_date',
             'vital_signs',
+            'service_fee',
+            'examination_fee',
+            'total_fee',
+            'payment_status',
+            'payment_method',
+            'paid_at',
+            'service_name',
             'created_by',
             'created_by_name',
             'created_at',
@@ -255,8 +263,15 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
             'created_by',
             'created_by_name',
             'created_at',
-            'updated_at'
+            'updated_at',
+            'total_fee',
+            'paid_at'
         ]
+    
+    def get_service_name(self, obj):
+        if obj.appointment and obj.appointment.service:
+            return obj.appointment.service.name
+        return None
     
     def validate_vital_signs(self, value):
         """Validate vital signs JSON structure"""
