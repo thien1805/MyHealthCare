@@ -163,6 +163,39 @@ class OpenRouterService:
         except json.JSONDecodeError as e:
             return {"error": f"JSON parsing error: {str(e)}", "raw_response": response_text}
          
+    def _get_system_context(self):
+        """
+        Get comprehensive system context for AI chatbot
+        Includes departments, services, and app navigation info
+        """
+        cache_key = "ai_system_context"
+        context = cache.get(cache_key)
+        
+        if context is None:
+            from apps.appointments.models import Department, Service
+            
+            # Get departments with their services
+            departments = Department.objects.filter(is_active=True).prefetch_related('services')
+            
+            dept_info = []
+            for dept in departments:
+                services = dept.services.filter(is_active=True).values_list('name', flat=True)[:5]
+                dept_info.append({
+                    "name": dept.name,
+                    "name_en": dept.name_en or dept.name,
+                    "fee": str(dept.health_examination_fee) if dept.health_examination_fee else "Contact clinic",
+                    "services": list(services)
+                })
+            
+            context = {
+                "departments": dept_info,
+                "total_departments": len(dept_info),
+                "total_services": Service.objects.filter(is_active=True).count()
+            }
+            cache.set(cache_key, context, 1800)  # Cache for 30 minutes
+            
+        return context
+         
     def health_chatbot(self, user_message, conversation_history=None):
         """Health Q&A chatbot for general health inquiries
             
@@ -177,20 +210,43 @@ class OpenRouterService:
                 - User: "Cảm cúm có nguy hiểm không?"
                 - Bot: "Cảm cúm thường không nguy hiểm nhưng cần theo dõi... Nếu triệu chứng nặng, vui lòng đặt lịch khám với bác sĩ"
         """
-        system_prompt = """Bạn là một trợ lý y tế hữu ích cho ứng dụng MyHealthCare.
+        # Get system context
+        system_context = self._get_system_context()
+        departments_info = "\n".join([
+            f"- {d['name']} ({d['name_en']}): Fee {d['fee']}đ, Services: {', '.join(d['services'][:3])}" 
+            for d in system_context.get('departments', [])
+        ])
+        
+        system_prompt = f"""Bạn là MyHealthCare Assistant - trợ lý y tế AI cho ứng dụng đặt lịch khám bệnh MyHealthCare.
 
-                    **Trách nhiệm của bạn:**
-                        - Cung cấp thông tin y tế chung và lời khuyên
-                        - Giúp bệnh nhân hiểu các triệu chứng
-                        - Hướng dẫn bệnh nhân khi nào cần khám bác sĩ
-                        - Trả lời các câu hỏi về thủ tục khám bệnh
+**THÔNG TIN HỆ THỐNG MYHEALTHCARE:**
+- Website: https://myhealthcare.vn (Frontend)
+- Tổng số chuyên khoa: {system_context.get('total_departments', 0)}
+- Tổng số dịch vụ: {system_context.get('total_services', 0)}
 
-                    **Quy tắc quan trọng:**
-                        - LUÔN làm rõ rằng bạn không thay thế chẩn đoán y tế chuyên nghiệp
-                        - Khuyến khích bệnh nhân đặt lịch khám nếu những lo ngại là nghiêm trọng
-                        - Thân thiện, chuyên nghiệp và giàu cảm thương
-                        - Trả lời bằng tiếng Việt hoặc tiếng Anh tùy theo ngôn ngữ của bệnh nhân
-                    - Giới hạn câu trả lời trong 200-300 từ"""
+**CÁC CHUYÊN KHOA HIỆN CÓ:**
+{departments_info}
+
+**HƯỚNG DẪN SỬ DỤNG ỨNG DỤNG:**
+1. Đặt lịch khám: Vào "Đặt lịch" > Chọn chuyên khoa > Chọn bác sĩ > Chọn ngày giờ > Xác nhận
+2. Xem lịch hẹn: Đăng nhập > "Lịch hẹn của tôi" hoặc Dashboard
+3. Xem hồ sơ bệnh án: Đăng nhập > Dashboard > Tab "Hồ sơ bệnh án"
+4. Đổi ngôn ngữ: Click nút VI/EN ở header
+
+**TRÁCH NHIỆM CỦA BẠN:**
+- Cung cấp thông tin y tế chung và lời khuyên sức khỏe
+- Giúp bệnh nhân hiểu các triệu chứng và đề xuất chuyên khoa phù hợp
+- Hướng dẫn sử dụng ứng dụng MyHealthCare (đặt lịch, xem lịch hẹn, etc.)
+- Trả lời câu hỏi về các chuyên khoa, dịch vụ có trong hệ thống
+
+**QUY TẮC QUAN TRỌNG:**
+- LUÔN làm rõ rằng bạn không thay thế chẩn đoán y tế chuyên nghiệp
+- Khuyến khích bệnh nhân đặt lịch khám nếu lo ngại nghiêm trọng
+- Thân thiện, chuyên nghiệp và giàu cảm thương
+- Trả lời bằng tiếng Việt hoặc tiếng Anh tùy theo ngôn ngữ người dùng
+- Giới hạn câu trả lời trong 200-300 từ
+- Khi hỏi về đặt lịch, hướng dẫn chi tiết cách sử dụng app"""
+
         messages = [{"role": "system", "content": system_prompt}]
             
             #Add conversation history if available 
@@ -201,7 +257,7 @@ class OpenRouterService:
         
             
         response = self.chat_completion(messages)
-        return response if response else "Sorry, I couldn't process your request at the moment. Please try again later."
+        return response if response else "Xin lỗi, tôi không thể xử lý yêu cầu của bạn lúc này. Vui lòng thử lại sau hoặc liên hệ hotline: 1900-xxxx"
     
     
 #Singleton instance

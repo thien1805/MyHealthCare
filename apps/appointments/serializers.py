@@ -16,8 +16,10 @@ class DepartmentSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'name_en',
             'icon',
             'description',
+            'description_en',
             'health_examination_fee',
             'is_active',
             'services_count',
@@ -127,14 +129,19 @@ class ServiceSerializer(serializers.ModelSerializer):
     """
     department_id = serializers.SerializerMethodField()
     department_name = serializers.SerializerMethodField()
+    department_name_en = serializers.SerializerMethodField()
     department_icon = serializers.SerializerMethodField()
     
     def get_department_id(self, obj):
         return obj.department.id if obj.department else None
 
     def get_department_name(self, obj):
-        """Return department name"""
+        """Return department name in Vietnamese"""
         return obj.department.name if obj.department else None
+    
+    def get_department_name_en(self, obj):
+        """Return department name in English"""
+        return obj.department.name_en if obj.department else None
     
     def get_department_icon(self, obj):
         """Return department icon"""
@@ -145,15 +152,18 @@ class ServiceSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
+            'name_en',
             'department_id',
             'department_name',
+            'department_name_en',
             'department_icon',
             'description',
+            'description_en',
             'price',
             'is_active',
             'created_at'
         ]
-        read_only_fields = ['id', 'created_at', 'department_name', 'department_icon', 'department_id']
+        read_only_fields = ['id', 'created_at', 'department_name', 'department_name_en', 'department_icon', 'department_id']
 
 
 class RoomSerializer(serializers.ModelSerializer):

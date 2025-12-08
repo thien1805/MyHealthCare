@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -47,12 +48,15 @@ patient_router = DefaultRouter()
 patient_router.register(r'appointments', PatientAppointmentViewSet, basename='patient-appointment')
 
 urlpatterns = [
+    # Root redirect to API docs
+    path('', RedirectView.as_view(url='/api/v1/docs/', permanent=False), name='root-redirect'),
+    
     path('api/v1/admin/', admin.site.urls),
     
     #OpenAPI Schema 
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     
-    #Swagger UI (Interactiver API documentation)
+    #Swagger UI (Interactive API documentation)
     path('api/v1/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     
     #Redoc (Alternative documentation UI)

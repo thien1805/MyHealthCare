@@ -12,7 +12,13 @@ class Department(models.Model):
     name = models.CharField(
         max_length=255,
         unique=True,
-        help_text="Department name (e.g., 'Nhi khoa', 'Tim mạch')"
+        help_text="Department name in Vietnamese (e.g., 'Nhi khoa', 'Tim mạch')"
+    )
+    name_en = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Department name in English (e.g., 'Pediatrics', 'Cardiology')"
     )
     icon = models.CharField(
         max_length=10,
@@ -23,7 +29,12 @@ class Department(models.Model):
     description = models.TextField(
         blank=True,
         null=True,
-        help_text="Department description"
+        help_text="Department description in Vietnamese"
+    )
+    description_en = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Department description in English"
     )
     is_active = models.BooleanField(
         default=True,
@@ -41,6 +52,18 @@ class Department(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def get_localized_name(self, language='vi'):
+        """Return name based on language preference"""
+        if language == 'en' and self.name_en:
+            return self.name_en
+        return self.name
+    
+    def get_localized_description(self, language='vi'):
+        """Return description based on language preference"""
+        if language == 'en' and self.description_en:
+            return self.description_en
+        return self.description or ''
 
 class Service(models.Model):
     """
@@ -53,8 +76,10 @@ class Service(models.Model):
         related_name='services',
         help_text="Department this service belongs to"
     )
-    name = models.CharField(max_length=255, help_text="Service name (e.g., Khám tổng quát)")
-    description = models.TextField(blank=True, null=True, help_text="Service description")
+    name = models.CharField(max_length=255, help_text="Service name in Vietnamese (e.g., Khám tổng quát)")
+    name_en = models.CharField(max_length=255, blank=True, null=True, help_text="Service name in English (e.g., General Checkup)")
+    description = models.TextField(blank=True, null=True, help_text="Service description in Vietnamese")
+    description_en = models.TextField(blank=True, null=True, help_text="Service description in English")
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Service price in VND")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -67,6 +92,18 @@ class Service(models.Model):
     
     def __str__(self):
         return f"{self.name} - {self.department.name}"
+    
+    def get_localized_name(self, language='vi'):
+        """Return name based on language preference"""
+        if language == 'en' and self.name_en:
+            return self.name_en
+        return self.name
+    
+    def get_localized_description(self, language='vi'):
+        """Return description based on language preference"""
+        if language == 'en' and self.description_en:
+            return self.description_en
+        return self.description or ''
 
 class Room(models.Model):
     """
