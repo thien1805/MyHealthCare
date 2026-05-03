@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.exceptions import ValidationError as DRFValidationError
-from .models import User, Doctor
+from .models import User, Doctor, Patient
 from .serializers import RegisterSerializer, RegisterResponseSerializer, UserSerializer, LoginSerializer, ProfileUpdateSerializer, DoctorProfileSerializer, PatientProfileSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError
@@ -295,6 +295,91 @@ class LoginView(generics.GenericAPIView):
                 "access": str(refresh.access_token)
             }
         })
+
+
+class DemoLoginView(APIView):
+    """Public demo login endpoint for portfolio testing"""
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        operation_id="auth_demo_login",
+        summary="Demo login for portfolio testing",
+        description="""Generate a demo patient account and return JWT tokens.
+
+        This endpoint is designed for recruiters or portfolio reviewers to quickly test the backend
+        without creating a full account.
+        """,
+        tags=["Authentication"],
+        request=None,
+        responses={
+            200: {
+                'description': 'Demo login successful',
+                'content': {
+                    'application/json': {
+                        'example': {
+                            'success': True,
+                            'message': 'Demo login successful',
+                            'user': {
+                                'id': 1,
+                                'email': 'demo@myhealthcare.com',
+                                'full_name': 'Demo Patient',
+                                'role': 'patient'
+                            },
+                            'tokens': {
+                                'refresh': 'refresh_token',
+                                'access': 'access_token'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+    def post(self, request):
+        try:
+            demo_email = "demo@myhealthcare.com"
+            demo_password = "demo123"
+
+            try:
+                user = User.objects.get(email=demo_email)
+            except User.DoesNotExist:
+                user = User.objects.create_user(
+                    email=demo_email,
+                    password=demo_password,
+                    full_name="Demo Patient",
+                    role="patient",
+                    is_active=True
+                )
+
+            # Ensure demo patient profile exists
+            Patient.objects.get_or_create(
+                user=user,
+                defaults={
+                    'date_of_birth': '1990-01-01',
+                    'gender': 'other',
+                    'address': 'Demo patient account for portfolio testing',
+                    'insurance_id': 'DEMO001'
+                }
+            )
+
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "success": True,
+                "message": "Demo login successful",
+                "user": UserSerializer(user).data,
+                "tokens": {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token)
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error in DemoLoginView.post: {str(e)}", exc_info=True)
+            return Response({
+                "success": False,
+                "message": "Unable to create demo user at this time."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class LogoutView(APIView):
     """

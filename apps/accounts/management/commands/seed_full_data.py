@@ -26,6 +26,9 @@ class Command(BaseCommand):
         # Create admin if not exists
         self.create_admin()
 
+        # Create demo account for portfolio/recruiter testing
+        self.create_demo_user()
+
         self.stdout.write("=" * 60)
         self.stdout.write(self.style.SUCCESS("✅ Database seeded successfully!"))
         self.stdout.write("=" * 60)
@@ -331,6 +334,39 @@ class Command(BaseCommand):
         else:
             self.stdout.write("  • Admin user already exists")
 
+    def create_demo_user(self):
+        """Create a demo patient account for easy portfolio testing"""
+        self.stdout.write("\n👥 Creating demo patient account...")
+        demo_email = "demo@myhealthcare.com"
+        demo_password = "demo123"
+
+        demo_user, created = User.objects.get_or_create(
+            email=demo_email,
+            defaults={
+                "full_name": "Demo Patient",
+                "role": "patient",
+                "is_active": True,
+            }
+        )
+
+        if created:
+            demo_user.set_password(demo_password)
+            demo_user.save()
+            self.stdout.write(self.style.SUCCESS("  ✓ Demo user created"))
+        else:
+            self.stdout.write("  • Demo user already exists")
+
+        Patient.objects.get_or_create(
+            user=demo_user,
+            defaults={
+                'date_of_birth': '1990-01-01',
+                'gender': 'other',
+                'address': 'Demo patient account for portfolio testing',
+                'insurance_id': 'DEMO001'
+            }
+        )
+        self.stdout.write(f"  • Credential: {demo_email} / {demo_password}")
+
     def print_summary(self):
         """Print summary of created data"""
         self.stdout.write("\n📋 SUMMARY")
@@ -353,5 +389,6 @@ class Command(BaseCommand):
         
         self.stdout.write("\n🔐 Login Credentials:")
         self.stdout.write("  Admin:   admin@myhealthcare.com / admin123")
+        self.stdout.write("  Demo:    demo@myhealthcare.com / demo123")
         self.stdout.write("  Doctor:  doctor.{dept}_1@myhealthcare.com / doctor123")
         self.stdout.write("  Patient: patient1@gmail.com / patient123")
