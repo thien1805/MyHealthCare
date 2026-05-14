@@ -1,0 +1,196 @@
+/* Layout chung: sidebar + calendar */
+.cal-layout {
+  width: 100%;
+}
+
+/* MAIN CALENDAR CARD */
+
+.cal-main-card {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 18px 22px 24px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+/* HEADER */
+
+.cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.cal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cal-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.cal-today-btn {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  padding: 6px 14px;
+  font-size: 13px;
+  background: #f9fafb;
+  cursor: pointer;
+}
+
+.cal-nav-btn {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.cal-month-label {
+  font-weight: 600;
+  font-size: 15px;
+  margin: 0 6px;
+}
+
+.cal-view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: #eef2ff;
+  gap: 4px;
+}
+
+.cal-view-btn {
+  border-radius: 999px;
+  border: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: #4b5563;
+}
+
+.cal-view-btn--active {
+  background: #4f46e5;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cal-view-btn--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* GRID */
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  font-size: 12px;
+}
+
+.cal-grid-header {
+  text-align: center;
+  font-weight: 600;
+  color: #9ca3af;
+  padding: 4px 0 6px;
+}
+
+/* Ô ngày */
+
+.cal-day-cell {
+  min-height: 80px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  position: relative;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-day-cell--empty {
+  background: #f9fafb;
+}
+
+.cal-day-cell--today {
+  border-color: #7ab8d4;
+  box-shadow: 0 0 0 1px #7ab8d4;
+}
+
+.cal-day-number {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* --------- EVENTS TRONG Ô NGÀY --------- */
+
+/* Container chứa các event trong 1 ngày */
+.cal-day-events {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Một event: hiển thị giờ + tên bệnh nhân */
+.cal-event {
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: #e8f4f8;          /* xanh nhạt pastel */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cal-event-time {
+  font-size: 10px;
+  font-weight: 600;
+  color: #3d7a94;               /* xanh pastel đậm hơn */
+}
+
+.cal-event-name {
+  font-size: 10px;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* (Không dùng dots đỏ nữa, nhưng giữ lại nếu DOM cũ còn) */
+.cal-day-dots {
+  display: none;
+}
+
+.cal-day-dot {
+  display: none;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1024px) {
+  .cal-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cal-sidebar {
+    order: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .cal-main-card {
+    padding: 14px 12px 18px;
+  }
+
+  .cal-day-cell {
+    min-height: 60px;
+  }
+}

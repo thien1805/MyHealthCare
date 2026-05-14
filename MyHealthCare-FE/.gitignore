@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.tools/
+.vite-dev-*.log
+.vscode/
+.DS_Store
+*.log

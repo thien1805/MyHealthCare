@@ -1,0 +1,175 @@
+.apt-ticket-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 2rem 1rem;
+}
+
+.apt-ticket-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.apt-ticket-back {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  transition: color 0.2s;
+}
+
+.apt-ticket-back:hover {
+  color: #2563eb;
+}
+
+.apt-ticket-card {
+  background: white;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.apt-ticket-title {
+  text-align: center;
+  color: #1f2937;
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+}
+
+.apt-ticket-content {
+  margin-bottom: 2rem;
+}
+
+.apt-ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.apt-ticket-row:last-of-type {
+  border-bottom: none;
+}
+
+.apt-ticket-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.apt-ticket-value {
+  color: #1f2937;
+  font-weight: 500;
+  text-align: right;
+}
+
+.apt-ticket-fee {
+  color: #10b981;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.apt-ticket-notice {
+  background: #fef3c7;
+  border: 2px solid #fbbf24;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  color: #92400e;
+  font-weight: 500;
+  text-align: center;
+  font-style: italic;
+}
+
+.apt-ticket-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.apt-ticket-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+}
+
+.apt-ticket-btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.apt-ticket-btn-primary:hover {
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+  transform: translateY(-2px);
+}
+
+.apt-ticket-btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.apt-ticket-btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+.apt-ticket-loading,
+.apt-ticket-error {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 640px) {
+  .apt-ticket-card {
+    padding: 1.5rem;
+  }
+
+  .apt-ticket-title {
+    font-size: 1.5rem;
+  }
+
+  .apt-ticket-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .apt-ticket-value {
+    text-align: left;
+  }
+
+  .apt-ticket-actions {
+    flex-direction: column;
+  }
+
+  .apt-ticket-btn {
+    width: 100%;
+  }
+}
+
+@media print {
+  .apt-ticket-back,
+  .apt-ticket-actions {
+    display: none;
+  }
+
+  .apt-ticket-page {
+    background: white;
+    padding: 0;
+  }
+
+  .apt-ticket-card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+}

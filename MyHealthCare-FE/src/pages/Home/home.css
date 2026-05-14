@@ -1,0 +1,90 @@
+.home-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f9fafb;
+  overflow-x: hidden;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.main-content {
+  flex: 1;
+}
+
+/* Hero Section */
+.hero-section {
+  background: linear-gradient(to bottom right, #BCDFF1, #E8F4F8);
+  padding: 0;
+  width: 100%;
+}
+
+.hero-container {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.carousel-wrapper {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.reveal-block {
+  opacity: 0;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.reveal-block.reveal-visible {
+  opacity: 1;
+}
+
+/* Fade up animation */
+.reveal-fade-up {
+  transform: translateY(32px);
+}
+
+.reveal-fade-up.reveal-visible {
+  transform: translateY(0);
+}
+
+/* Slide from right animation */
+.reveal-slide-right {
+  transform: translateX(-40px);
+}
+
+.reveal-slide-right.reveal-visible {
+  transform: translateX(0);
+}
+
+/* Zoom in animation */
+.reveal-zoom-in {
+  transform: scale(0.95);
+}
+
+.reveal-zoom-in.reveal-visible {
+  transform: scale(1);
+}
+
+.services-section,
+.cta-section {
+  animation: fadeInUp 0.9s ease both;
+}
+
+.services-section {
+  animation-delay: 0.1s;
+}
+
+.cta-section {
+  animation-delay: 0.2s;
+}
